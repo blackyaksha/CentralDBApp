@@ -9,6 +9,7 @@ function App() {
   const [items, setItems] = useState<Database[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     let mounted = true
@@ -64,11 +65,27 @@ function App() {
           </a>
         </div>
         <h1>Data Source — Tabular View</h1>
+        <div className="search-bar">
+          <input
+            type="search"
+            placeholder="Search Title or File Path..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search items by title or file path"
+          />
+          {query && (
+            <button onClick={() => setQuery('')} aria-label="Clear search">
+              ×
+            </button>
+          )}
+        </div>
       </header>
 
       <main>
         {loading && <p>Loading...</p>}
         {error && <p style={{ color: 'red' }}>{error}</p>}
+
+        
 
         {!loading && items && (
           <div className="table-wrapper">
@@ -87,6 +104,18 @@ function App() {
                 }
                 return obj[key]
               }
+
+              const lowerQuery = query.trim().toLowerCase()
+              const matchesQuery = (it: any) => {
+                if (!lowerQuery) return true
+                const tokens = lowerQuery.split(/\s+/).filter(Boolean)
+                const title = String(getValue(it, 'Title') ?? '').toLowerCase()
+                const path = String(getValue(it, 'FilePath') ?? '').toLowerCase()
+                // require every token to appear in either title or path
+                return tokens.every((t) => title.includes(t) || path.includes(t))
+              }
+
+              const visibleItems = (items || []).filter(matchesQuery)
 
               const extractHrefFromFileURL = (val: any): string | null => {
                 if (!val || typeof val !== 'string') return null
@@ -177,7 +206,6 @@ function App() {
                       2 -> Title
                       3 -> FilePath
                       4 -> FileType
-                      5 -> FileURL
                   */}
                   <colgroup>
                     {/* 1: ID */}
@@ -197,7 +225,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((it, idx) => {
+                    {visibleItems.map((it, idx) => {
                       const rowHref = extractHrefFromFileURL(getValue(it as any, 'FileURL'))
                       return (
                         <tr
