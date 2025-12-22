@@ -5,6 +5,21 @@
   text-align: center;
 }
 
+/* Make app a column layout so main can center vertically */
+.App {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center; /* vertical centering */
+  justify-content: center; /* horizontal centering */
+  padding: 1rem 0;
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;
@@ -46,12 +61,19 @@
   overflow-x: auto;
   margin: 1rem auto;
   max-width: 100%;
+  display: flex;
+  justify-content: center; /* center the table horizontally */
+  align-items: center;
+  width: 100%;
 }
 .table-wrapper table {
-  width: 100%;
+  width: 90vw; /* larger table width relative to viewport */
+  max-width: 1400px; /* cap maximum width */
   border-collapse: collapse;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
-  font-size: 0.95rem;
+  font-size: 1.15rem; /* larger text for readability */
+  table-layout: fixed; /* respect column widths and wrap content */
+  margin: 0 auto; /* ensure table is horizontally centered inside wrapper */
 }
 .table-wrapper th,
 .table-wrapper td {
@@ -77,23 +99,26 @@
   background: var(--row-even-bg);
 }
 
+/* Clickable row styles */
+.table-wrapper tbody tr.clickable {
+  cursor: pointer;
+}
+.table-wrapper tbody tr.clickable:hover {
+  filter: brightness(0.98);
+}
+
 /* Dark option: make rows black and text light */
 .table-wrapper.dark {
   --row-bg: #000000;
   --row-even-bg: #000000;
   --header-bg: #000000;
 }
-.table-wrapper.dark,
-.table-wrapper.dark td,
-.table-wrapper.dark th {
-  color: #ffffff;
+.table-wrapper th,
+.table-wrapper td {
+  border: 1px solid #d0d7de;
+  padding: 0.65rem 1rem; /* larger cells */
+  text-align: left;
 }
-.table-wrapper td,
-.table-wrapper th {
-  white-space: normal;
-  word-break: break-word;
-}
-
 .fileurl-cell {
   display: flex;
   flex-direction: column;
@@ -102,7 +127,7 @@
 }
 .fileurl-text {
   color: #222;
-  font-size: 0.92rem;
+  font-size: 0.98rem;
   max-width: 40rem;
   overflow-wrap: anywhere;
 }
@@ -123,4 +148,15 @@
 }
 .table-wrapper a:hover {
   text-decoration: underline;
+}
+
+/* Responsive: full-width on small screens, centered on larger screens */
+@media (max-width: 767px) {
+  .table-wrapper {
+    display: block;
+    padding: 0 0.5rem;
+  }
+  .table-wrapper table {
+    width: 100%;
+  }
 }

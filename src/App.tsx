@@ -77,17 +77,8 @@ function App() {
               const columns: { key: string; label?: string }[] = [
                 { key: 'ID', label: 'ID' },
                 { key: 'Title', label: 'Title' },
-                { key: 'CustomID', label: 'Custom ID' },
-                { key: 'Created', label: 'Created' },
-                { key: 'PathKey', label: 'Path Key' },
-                { key: 'Mirror_ID', label: 'Mirror ID' },
                 { key: 'FilePath', label: 'File Path' },
-                { key: 'FileType', label: 'File Type' },
-                { key: 'FileURL', label: 'File URL' },
-                { key: 'IsFolder', label: 'Is Folder' },
-                { key: 'Modified', label: 'Modified' },
-                { key: 'Author.DisplayName', label: 'Author' }
-              ]
+                { key: 'FileType', label: 'File Type' },              ]
 
               const getValue = (obj: any, key: string) => {
                 if (!obj) return undefined
@@ -95,6 +86,27 @@ function App() {
                   return key.split('.').reduce((o, k) => (o ? o[k] : undefined), obj)
                 }
                 return obj[key]
+              }
+
+              const extractHrefFromFileURL = (val: any): string | null => {
+                if (!val || typeof val !== 'string') return null
+                const str = val
+                try {
+                  const decoded = str.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+                  const hasAnchor = /<\s*a\b/i.test(decoded)
+                  if (hasAnchor) {
+                    const parser = new DOMParser()
+                    const doc = parser.parseFromString(decoded, 'text/html')
+                    const anchor = doc.querySelector('a')
+                    const href = anchor?.getAttribute('href') ?? null
+                    return href
+                  }
+                  // if plain URL
+                  if (/^https?:\/\//i.test(decoded)) return decoded
+                } catch {
+                  // fallthrough
+                }
+                return null
               }
 
               const renderCell = (value: any, key: string) => {
@@ -155,6 +167,28 @@ function App() {
 
               return (
                 <table>
+                  {/*
+                    Edit column widths here — each <col> corresponds to the
+                    columns defined in the `columns` array below (same order).
+                    Change the `width` value on the matching <col>.
+
+                    Mapping (col index -> column key):
+                      1 -> ID
+                      2 -> Title
+                      3 -> FilePath
+                      4 -> FileType
+                      5 -> FileURL
+                  */}
+                  <colgroup>
+                    {/* 1: ID */}
+                    <col style={{ width: '150px' }} />
+                    {/* 2: Title */}
+                    <col style={{ width: '300px' }} />
+                    {/* 3: FilePath */}
+                    <col style={{ width: '300px' }} />
+                    {/* 4: FileType */}
+                    <col style={{ width: '140px' }} />
+                  </colgroup>
                   <thead>
                     <tr>
                       {columns.map((c) => (
@@ -163,15 +197,30 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((it, idx) => (
-                      <tr key={it.ID ?? idx}>
-                        {columns.map((c) => (
-                          <td key={c.key}>
-                            {renderCell(getValue(it as any, c.key), c.key)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
+                    {items.map((it, idx) => {
+                      const rowHref = extractHrefFromFileURL(getValue(it as any, 'FileURL'))
+                      return (
+                        <tr
+                          key={it.ID ?? idx}
+                          className={rowHref ? 'clickable' : undefined}
+                          onClick={(e) => {
+                            // if user clicked a real link inside the row, let that work
+                            const a = (e.target as HTMLElement).closest('a')
+                            if (a) return
+                            if (rowHref) {
+                              // open in new tab to match explicit 'Open' behavior
+                              window.open(rowHref, '_blank')
+                            }
+                          }}
+                        >
+                          {columns.map((c) => (
+                            <td key={c.key}>
+                              {renderCell(getValue(it as any, c.key), c.key)}
+                            </td>
+                          ))}
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               )
