@@ -1,0 +1,30 @@
+{
+  "appId": "",
+  "appDisplayName": "Central Database App",
+  "description": null,
+  "environmentId": "e0ffbd29-750c-e27a-bc18-1dd635893797",
+  "buildPath": "./dist",
+  "buildEntryPoint": "index.html",
+  "logoPath": "Default",
+  "localAppUrl": "http://localhost:3000/",
+  "region": "prod",
+  "connectionReferences": {
+    "2d0c663e-2e59-47a6-8afc-80d51597f1c2": {
+      "id": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+      "displayName": "SharePoint",
+      "dataSources": [
+        "database"
+      ],
+      "dataSets": {
+        "https://energyregcomm.sharepoint.com/sites/CentralDatabase/": {
+          "dataSources": {
+            "database": {
+              "tableName": "36c3e3fe-6115-4088-9f76-66173c2a0060"
+            }
+          }
+        }
+      }
+    }
+  },
+  "databaseReferences": {}
+}
