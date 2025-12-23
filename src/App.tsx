@@ -10,6 +10,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     let mounted = true
@@ -88,20 +89,11 @@ function App() {
         
 
         {!loading && items && (
-          <div className="table-wrapper">
-            {/** Use the SharePoint schema's tabular display order as a sensible default */}
+          <div className="gallery-wrapper">
             {(() => {
-              const columns: { key: string; label?: string }[] = [
-                { key: 'ID', label: 'ID' },
-                { key: 'Title', label: 'Title' },
-                { key: 'FilePath', label: 'File Path' },
-                { key: 'FileType', label: 'File Type' },              ]
-
               const getValue = (obj: any, key: string) => {
                 if (!obj) return undefined
-                if (key.includes('.')) {
-                  return key.split('.').reduce((o, k) => (o ? o[k] : undefined), obj)
-                }
+                if (key.includes('.')) return key.split('.').reduce((o, k) => (o ? o[k] : undefined), obj)
                 return obj[key]
               }
 
@@ -111,7 +103,6 @@ function App() {
                 const tokens = lowerQuery.split(/\s+/).filter(Boolean)
                 const title = String(getValue(it, 'Title') ?? '').toLowerCase()
                 const path = String(getValue(it, 'FilePath') ?? '').toLowerCase()
-                // require every token to appear in either title or path
                 return tokens.every((t) => title.includes(t) || path.includes(t))
               }
 
@@ -130,7 +121,6 @@ function App() {
                     const href = anchor?.getAttribute('href') ?? null
                     return href
                   }
-                  // if plain URL
                   if (/^https?:\/\//i.test(decoded)) return decoded
                 } catch {
                   // fallthrough
@@ -138,119 +128,64 @@ function App() {
                 return null
               }
 
-              const renderCell = (value: any, key: string) => {
-                if (value == null) return ''
-                if (key === 'FileURL' && typeof value === 'string') {
-                  const str = value
-                  try {
-                    // Detect raw or encoded anchor and extract href/text if present
-                    const decoded = str.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-                    const hasAnchor = /<\s*a\b/i.test(decoded)
-                    if (hasAnchor) {
-                      const parser = new DOMParser()
-                      const doc = parser.parseFromString(decoded, 'text/html')
-                      const anchor = doc.querySelector('a')
-                      const href = anchor?.getAttribute('href') ?? ''
-                      const text = anchor?.textContent ?? anchor?.getAttribute('title') ?? href
-                      const markup = doc.body.innerHTML || decoded
-                      return (
-                        <div className="fileurl-cell">
-                          <div className="fileurl-text" dangerouslySetInnerHTML={{ __html: markup }} />
-                          <div className="fileurl-action">
-                            <a href={href || decoded} target="_blank" rel="noreferrer">Open</a>
-                          </div>
-                        </div>
-                      )
-                    }
-
-                    // plain URL: show the URL text (wrapped) and an Open link
-                    return (
-                      <div className="fileurl-cell">
-                        <div className="fileurl-text">{str}</div>
-                        <div className="fileurl-action">
-                          <a href={str} target="_blank" rel="noreferrer">Open</a>
-                        </div>
-                      </div>
-                    )
-                  } catch {
-                    return (
-                      <div className="fileurl-cell">
-                        <div className="fileurl-text">{str}</div>
-                        <div className="fileurl-action">
-                          <a href={str} target="_blank" rel="noreferrer">Open</a>
-                        </div>
-                      </div>
-                    )
-                  }
-                }
-                if (typeof value === 'object') {
-                  if (value.DisplayName) return value.DisplayName
-                  try {
-                    return JSON.stringify(value)
-                  } catch {
-                    return String(value)
-                  }
-                }
-                return String(value)
+              const renderIconTemplate = (it: any) => {
+                const fileType = String(getValue(it, 'FileType') ?? '').toLowerCase()
+                // Basic template: show an SVG placeholder and file type; user can replace with custom icons
+                return (
+                  <div className="icon-template" aria-hidden>
+                    <div className="icon-placeholder">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="20" height="20" x="2" y="2" rx="3" stroke="#cfd8e3" strokeWidth="1.2" fill="#f6f8fa" />
+                        <path d="M7 9h10M7 13h6" stroke="#6b7280" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                    <div className="icon-label">{fileType || 'file'}</div>
+                  </div>
+                )
               }
 
               return (
-                <table>
-                  {/*
-                    Edit column widths here — each <col> corresponds to the
-                    columns defined in the `columns` array below (same order).
-                    Change the `width` value on the matching <col>.
-
-                    Mapping (col index -> column key):
-                      1 -> ID
-                      2 -> Title
-                      3 -> FilePath
-                      4 -> FileType
-                  */}
-                  <colgroup>
-                    {/* 1: ID */}
-                    <col style={{ width: '150px' }} />
-                    {/* 2: Title */}
-                    <col style={{ width: '300px' }} />
-                    {/* 3: FilePath */}
-                    <col style={{ width: '300px' }} />
-                    {/* 4: FileType */}
-                    <col style={{ width: '140px' }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      {columns.map((c) => (
-                        <th key={c.key}>{c.label ?? c.key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
+                <div className="gallery-grid">
                     {visibleItems.map((it, idx) => {
-                      const rowHref = extractHrefFromFileURL(getValue(it as any, 'FileURL'))
-                      return (
-                        <tr
-                          key={it.ID ?? idx}
-                          className={rowHref ? 'clickable' : undefined}
-                          onClick={(e) => {
-                            // if user clicked a real link inside the row, let that work
-                            const a = (e.target as HTMLElement).closest('a')
-                            if (a) return
-                            if (rowHref) {
-                              // open in new tab to match explicit 'Open' behavior
-                              window.open(rowHref, '_blank')
-                            }
-                          }}
-                        >
-                          {columns.map((c) => (
-                            <td key={c.key}>
-                              {renderCell(getValue(it as any, c.key), c.key)}
-                            </td>
-                          ))}
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                    const rowHref = extractHrefFromFileURL(getValue(it as any, 'FileURL'))
+                    const title = getValue(it as any, 'Title') ?? `Item ${idx + 1}`
+                    const path = getValue(it as any, 'FilePath') ?? ''
+                    const keyStr = String(it.ID ?? idx)
+                    const expanded = !!expandedMap[keyStr]
+                    return (
+                      <article
+                        key={it.ID ?? idx}
+                        className={"gallery-card" + (rowHref ? ' clickable' : '')}
+                        onClick={(e) => {
+                          const a = (e.target as HTMLElement).closest('a')
+                          if (a) return
+                          if (rowHref) window.location.href = rowHref
+                        }}
+                      >
+                        {renderIconTemplate(it)}
+                        <div className="card-body">
+                          <div className="card-header">
+                            <h3 className={"card-title" + (expanded ? ' expanded' : '')}>{String(title)}</h3>
+                            <button
+                              className={"expand-toggle" + (expanded ? ' expanded' : '')}
+                              aria-expanded={expanded}
+                              aria-label={expanded ? 'Collapse' : 'Expand'}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setExpandedMap((m) => ({ ...m, [keyStr]: !m[keyStr] }))
+                              }}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 9l6 6 6-6" stroke="#374151" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className={"card-path" + (expanded ? ' expanded' : '')} title={String(path)}>{String(path)}</div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
               )
             })()}
           </div>
