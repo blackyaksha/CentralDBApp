@@ -154,13 +154,15 @@ export default function CurrentFiles() {
                   const expanded = !!expandedMap[keyStr]
 
                   return (
-                    <article
-                      key={keyStr}
-                      className="gallery-card"
-                      onClick={() => {
-                        // temporarily disabled navigation
-                      }}
-                    >
+                  <article
+                    key={keyStr}
+                    className="gallery-card"
+                    onClick={() => {
+                      if (rowHref) {
+                        window.open(rowHref, '_blank', 'noopener,noreferrer')
+                      }
+                    }}
+                  >
                       {renderIconTemplate(it)}
 
                       <div className="card-body">
@@ -199,28 +201,6 @@ export default function CurrentFiles() {
                           {String(path)}
                         </div>
 
-                        {/* Display the actual link */}
-                        {rowHref && (
-                          <div
-                            className="card-link"
-                            style={{
-                              fontSize: '0.9rem',
-                              color: '#2563eb',
-                              marginTop: '0.25rem',
-                              wordBreak: 'break-all', // wrap long links
-                            }}
-                          >
-                            Link:{' '}
-                            <a
-                              href={rowHref}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ color: '#2563eb', textDecoration: 'underline' }}
-                            >
-                              {rowHref}
-                            </a>
-                          </div>
-                        )}
                       </div>
                     </article>
                   )
