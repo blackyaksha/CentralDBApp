@@ -1,13 +1,16 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
-import PowerProvider from './PowerProvider.tsx'
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import './index.css';
+import App from './App';
+import PowerProvider from './PowerProvider';
+import { BrowserRouter } from 'react-router-dom';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <PowerProvider>
-      <App />
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
     </PowerProvider>
-  </StrictMode>,
-)
+  </StrictMode>
+);
