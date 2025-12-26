@@ -80,16 +80,38 @@ export default function CurrentFiles() {
 
             const visibleItems = (items || []).filter(matchesQuery)
 
+            // ✅ Updated function to handle relative SharePoint URLs
             const extractHrefFromFileURL = (val: any): string | null => {
-              if (!val || typeof val !== 'string') return null
-              try {
-                const decoded = val.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-                if (/<\s*a\b/i.test(decoded)) {
-                  const doc = new DOMParser().parseFromString(decoded, 'text/html')
-                  return doc.querySelector('a')?.getAttribute('href') ?? null
+              if (!val) return null
+
+              const SP_DOMAIN = 'https://energyregcomm.sharepoint.com'
+
+              // If it's an object with Url property
+              if (typeof val === 'object' && val.Url) {
+                const url = val.Url
+                if (url.startsWith('/')) return `${SP_DOMAIN}${url}`
+                return url
+              }
+
+              if (typeof val === 'string') {
+                try {
+                  const decoded = val.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+                  // Relative path
+                  if (decoded.startsWith('/')) return `${SP_DOMAIN}${decoded}`
+                  // HTML <a> tag
+                  if (/<\s*a\b/i.test(decoded)) {
+                    const doc = new DOMParser().parseFromString(decoded, 'text/html')
+                    const href = doc.querySelector('a')?.getAttribute('href')
+                    if (href?.startsWith('/')) return `${SP_DOMAIN}${href}`
+                    return href ?? null
+                  }
+                  // Already absolute URL
+                  if (/^https?:\/\//i.test(decoded)) return decoded
+                } catch {
+                  return null
                 }
-                if (/^https?:\/\//i.test(decoded)) return decoded
-              } catch {}
+              }
+
               return null
             }
 
@@ -134,11 +156,9 @@ export default function CurrentFiles() {
                   return (
                     <article
                       key={keyStr}
-                      className={'gallery-card' + (rowHref ? ' clickable' : '')}
-                      onClick={(e) => {
-                        const a = (e.target as HTMLElement).closest('a')
-                        if (a) return
-                        if (rowHref) window.location.href = rowHref
+                      className="gallery-card"
+                      onClick={() => {
+                        // temporarily disabled navigation
                       }}
                     >
                       {renderIconTemplate(it)}
@@ -149,21 +169,27 @@ export default function CurrentFiles() {
                             {String(title)}
                           </h3>
                           <button
-                          className={'expand-toggle' + (expanded ? ' expanded' : '')}
-                          aria-expanded={expanded}
-                          aria-label={expanded ? 'Collapse' : 'Expand'}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setExpandedMap((m) => ({
-                              ...m,
-                              [keyStr]: !m[keyStr],
-                            }))
-                          }}
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M6 9l6 6 6-6" stroke="#374151" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        </button>
+                            className={'expand-toggle' + (expanded ? ' expanded' : '')}
+                            aria-expanded={expanded}
+                            aria-label={expanded ? 'Collapse' : 'Expand'}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setExpandedMap((m) => ({
+                                ...m,
+                                [keyStr]: !m[keyStr],
+                              }))
+                            }}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                              <path
+                                d="M6 9l6 6 6-6"
+                                stroke="#374151"
+                                strokeWidth="1.6"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
                         </div>
 
                         <div
@@ -172,6 +198,29 @@ export default function CurrentFiles() {
                         >
                           {String(path)}
                         </div>
+
+                        {/* Display the actual link */}
+                        {rowHref && (
+                          <div
+                            className="card-link"
+                            style={{
+                              fontSize: '0.9rem',
+                              color: '#2563eb',
+                              marginTop: '0.25rem',
+                              wordBreak: 'break-all', // wrap long links
+                            }}
+                          >
+                            Link:{' '}
+                            <a
+                              href={rowHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#2563eb', textDecoration: 'underline' }}
+                            >
+                              {rowHref}
+                            </a>
+                          </div>
+                        )}
                       </div>
                     </article>
                   )
