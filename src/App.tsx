@@ -42,7 +42,7 @@ export default function App() {
             <span />
           </button>
 
-          <h1>Planning Division Central Database</h1>
+          <h1>Planning Division</h1>
         </header>
 
         {/* ROUTES */}

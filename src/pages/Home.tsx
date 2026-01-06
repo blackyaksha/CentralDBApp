@@ -5,8 +5,7 @@ export default function Home() {
 
   return (
     <div style={{ textAlign: 'center', marginTop: '100px' }}>
-      <h1>Welcome to the Central Database App</h1>
-      <p>Click below to access the database content.</p>
+      <h1>Welcome Planning Division Team!</h1>
       <button
         onClick={() => navigate('/current')}
         style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer' }}
