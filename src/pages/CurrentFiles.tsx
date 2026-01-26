@@ -31,29 +31,68 @@ export default function CurrentFiles() {
     let mounted = true
     setLoading(true)
 
-    DatabaseService.getAll()
-      .then((res: any) => {
-        const tryArray = (obj: any): any[] | null => {
-          if (!obj) return null
-          if (Array.isArray(obj)) return obj
-          if (Array.isArray(obj.value)) return obj.value
-          if (Array.isArray(obj.result)) return obj.result
-          if (Array.isArray(obj.result?.value)) return obj.result.value
-          if (Array.isArray(obj.value?.value)) return obj.value.value
-          for (const k of Object.keys(obj)) {
-            if (Array.isArray(obj[k])) return obj[k]
+    const fetchAllPages = async () => {
+      try {
+        console.log('Starting fetch from Power Automate flow...')
+        
+        // Power Automate flow URL
+        const flowUrl = 'https://e0ffbd29750ce27abc181dd6358937.97.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cfab82d9a54742ec972b38131cc7a46d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=RMcIUCCrXGkwYN7UiSfhC1zEmtCZZVhA9UBM6z62n6U'
+
+        const response = await fetch(flowUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
           }
-          return null
+        })
+
+        if (!response.ok) {
+          throw new Error(`Flow request failed: ${response.status} ${response.statusText}`)
         }
 
-        const data = tryArray(res)
-        if (mounted) {
-          if (data) setItems(data)
-          else setError('No array found in service response')
+        const data = await response.json()
+        console.log('Flow response received:', data)
+
+        // Extract items from the flow response - support multiple response structures
+        let allItems: any[] = []
+        
+        // Try different possible response structures
+        if (Array.isArray(data)) {
+          allItems = data
+        } else if (data?.items && Array.isArray(data.items)) {
+          allItems = data.items
+        } else if (data?.value && Array.isArray(data.value)) {
+          allItems = data.value
+        } else if (data?.data && Array.isArray(data.data)) {
+          allItems = data.data
+        } else {
+          // If response is an object, try to find the array
+          for (const key in data) {
+            if (Array.isArray(data[key])) {
+              allItems = data[key]
+              console.log(`Found array at key: ${key}`)
+              break
+            }
+          }
         }
-      })
-      .catch((err) => mounted && setError(String(err)))
-      .finally(() => mounted && setLoading(false))
+
+        console.log(`✅ Total items loaded: ${allItems.length}`)
+
+        if (mounted) {
+          setItems(allItems)
+        }
+      } catch (err) {
+        console.error('❌ Error fetching from Power Automate:', err)
+        if (mounted) {
+          setError(String(err))
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchAllPages()
 
     return () => {
       mounted = false
@@ -74,6 +113,9 @@ export default function CurrentFiles() {
           onChange={(e) => setQuery(e.target.value)}
         />
         {query && <button onClick={() => setQuery('')}>×</button>}
+        <span style={{ marginLeft: 'auto', fontSize: '0.9em', color: '#666' }}>
+          Total: {items?.length ?? 0} items
+        </span>
       </div>
 
       {/* GALLERY */}
@@ -101,11 +143,13 @@ export default function CurrentFiles() {
               ? (items ?? []).filter((it: any) => getParentFolder(getValue(it, 'FilePath')) === activeFolder)
               : (items ?? [])
 
+
             // 🔹 apply search
             const searchedItems = baseItems.filter(matchesQuery)
 
+            // 🔹 For root folder view, group ALL items to show all parent folders
             const rootGroupedItems = !activeFolder
-            ? searchedItems.reduce<Record<string, any[]>>((acc, it) => {
+            ? (items ?? []).reduce<Record<string, any[]>>((acc, it) => {
                 const path = getValue(it, 'FilePath')
                 const parent = getParentFolder(path)
 
