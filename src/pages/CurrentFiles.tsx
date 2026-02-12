@@ -1,14 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import type { Database } from '../generated/models/DatabaseModel'
 import { DatabaseService } from '../generated'
 
 export default function CurrentFiles() {
   const [items, setItems] = useState<Database[] | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({})
   const [activeFolder, setActiveFolder] = useState<string | null>(null)
+  const [nextLink, setNextLink] = useState<string | null>(null);
+  // const [pageNumber, setPageNumber] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [skipToken, setSkipToken] = useState<string | null>(null)
+  const PAGE_SIZE = 5000  // number of items per batch
+  const mounted = useRef(true)
+
+
+
 
   const getParentFolder = (path: any): string => {
     if (!path || typeof path !== 'string') return 'Unknown'
@@ -26,78 +36,82 @@ export default function CurrentFiles() {
   return parts.slice(0, 2).join('/') // e.g. SharedDocuments/PD
   }
 
+const fetchAllPages = async (isFirstLoad = false) => {
+  try {
+    if (isFirstLoad) setLoading(true)
+    else setLoadingMore(true)
 
-  useEffect(() => {
-    let mounted = true
-    setLoading(true)
+    const flowUrl = 'https://e0ffbd29750ce27abc181dd6358937.97.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cfab82d9a54742ec972b38131cc7a46d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=RMcIUCCrXGkwYN7UiSfhC1zEmtCZZVhA9UBM6z62n6U'
 
-    const fetchAllPages = async () => {
-      try {
-        console.log('Starting fetch from Power Automate flow...')
-        
-        // Power Automate flow URL
-        const flowUrl = 'https://e0ffbd29750ce27abc181dd6358937.97.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cfab82d9a54742ec972b38131cc7a46d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=RMcIUCCrXGkwYN7UiSfhC1zEmtCZZVhA9UBM6z62n6U'
+    const response = await fetch(flowUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pageSize: PAGE_SIZE,
+        nextLink: nextLink ?? ""
+      })
+    })
 
-        const response = await fetch(flowUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        })
+    if (!response.ok)
+      throw new Error(`Flow request failed: ${response.status}`)
 
-        if (!response.ok) {
-          throw new Error(`Flow request failed: ${response.status} ${response.statusText}`)
-        }
+    const data = await response.json()
 
-        const data = await response.json()
-        console.log('Flow response received:', data)
+    const newItems = Array.isArray(data.items) ? data.items : []
 
-        // Extract items from the flow response - support multiple response structures
-        let allItems: any[] = []
-        
-        // Try different possible response structures
-        if (Array.isArray(data)) {
-          allItems = data
-        } else if (data?.items && Array.isArray(data.items)) {
-          allItems = data.items
-        } else if (data?.value && Array.isArray(data.value)) {
-          allItems = data.value
-        } else if (data?.data && Array.isArray(data.data)) {
-          allItems = data.data
-        } else {
-          // If response is an object, try to find the array
-          for (const key in data) {
-            if (Array.isArray(data[key])) {
-              allItems = data[key]
-              console.log(`Found array at key: ${key}`)
-              break
-            }
-          }
-        }
+    setItems(prev =>
+      isFirstLoad ? newItems : [...(prev ?? []), ...newItems]
+    )
 
-        console.log(`✅ Total items loaded: ${allItems.length}`)
+    setNextLink(data.nextLink ?? null)
+    setHasMore(!!data.nextLink)
 
-        if (mounted) {
-          setItems(allItems)
-        }
-      } catch (err) {
-        console.error('❌ Error fetching from Power Automate:', err)
-        if (mounted) {
-          setError(String(err))
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false)
-        }
+  } catch (err: any) {
+    setError(err.message)
+  } finally {
+    setLoading(false)
+    setLoadingMore(false)
+  }
+}
+
+// ---------------- PREVENT DOUBLE FETCH ----------------
+const fetchingRef = useRef(false); // prevents double fetch
+
+const loadNextBatch = async () => {
+  if (fetchingRef.current || !hasMore) return;
+  fetchingRef.current = true;
+  setLoadingMore(true);
+
+  try {
+    await fetchAllPages(); // fetchAllPages appends new items
+  } finally {
+    fetchingRef.current = false;
+    setLoadingMore(false);
+  }
+};
+
+useEffect(() => {
+  fetchAllPages(true)
+}, [])
+
+
+// ---------------- INFINITE SCROLL ----------------
+useEffect(() => {
+  if (!hasMore) return; // stop if nothing left
+
+  const interval = setInterval(() => {
+    // only try if not already fetching
+    if (!loading && !loadingMore && fetchingRef.current === false) {
+      // if page still doesn't have scroll
+      if (document.body.scrollHeight <= window.innerHeight + 100) {
+        loadNextBatch();
       }
     }
+  }, 300); // check every 300ms
 
-    fetchAllPages()
+  return () => clearInterval(interval); // cleanup on unmount
+}, [hasMore, loading, loadingMore]);
 
-    return () => {
-      mounted = false
-    }
-  }, [])
 
   if (loading) return <p>Loading...</p>
   if (error) return <p style={{ color: 'red' }}>{error}</p>
@@ -442,6 +456,15 @@ export default function CurrentFiles() {
   })()}
         </div>
       )}
+
+
+{/* 🔄 AUTO LOAD SPINNER */}
+{loadingMore && (
+  <div style={{ display: 'flex', justifyContent: 'center', padding: '30px' }}>
+    <div className="spinner" />
+  </div>
+)}
+
     </>
   )
 }
