@@ -1,6 +1,22 @@
 import { useEffect, useState, useRef } from 'react'
 import type { Database } from '../generated/models/DatabaseModel'
 import { DatabaseService } from '../generated'
+import pdfIcon from '../assets/Icons/pdf.png'
+import docxIcon from '../assets/Icons/docs.png'
+import xlsxIcon from '../assets/Icons/sheets.png'
+import pptxIcon from '../assets/Icons/pptx.png'
+import folderIcon from '../assets/Icons/folder.png'
+import zipIcon from '../assets/Icons/zip-folder.png'
+import movIcon from '../assets/Icons/mov.png'
+import mp3Icon from '../assets/Icons/mp3.png'
+import mp4Icon from '../assets/Icons/mp4.png'
+import m4vIcon from '../assets/Icons/m4v.png'
+import tmpIcon from '../assets/Icons/tmp.png'
+import rarIcon from '../assets/Icons/rar.png'
+import jpgIcon from '../assets/Icons/jpg.png'
+import pngIcon from '../assets/Icons/png.png'
+import parentFolderIcon from '../assets/Icons/parent.png'
+
 
 export default function CurrentFiles() {
   const [items, setItems] = useState<Database[] | null>(null)
@@ -122,12 +138,12 @@ useEffect(() => {
       <div className="search-bar">
         <input
           type="search"
-          placeholder="Search Title or File Path..."
+          placeholder="Type File Name or Path..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         {query && <button onClick={() => setQuery('')}>×</button>}
-        <span style={{ marginLeft: 'auto', fontSize: '0.9em', color: '#666' }}>
+        <span style={{ marginLeft: 'auto', fontSize: '0.9em', color: '#ffff' }}>
           Total: {items?.length ?? 0} items
         </span>
       </div>
@@ -219,34 +235,47 @@ useEffect(() => {
               return null
             }
 
-            const renderIconTemplate = (it: any) => {
-              const fileType = String(getValue(it, 'FileType') ?? '').toLowerCase()
-              return (
-                <div className="icon-template" aria-hidden={true}>
-                  <div className="icon-placeholder">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                      <rect
-                        width="20"
-                        height="20"
-                        x="2"
-                        y="2"
-                        rx="3"
-                        stroke="#cfd8e3"
-                        strokeWidth="1.2"
-                        fill="#f6f8fa"
-                      />
-                      <path
-                        d="M7 9h10M7 13h6"
-                        stroke="#6b7280"
-                        strokeWidth="1.2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </div>
-                  <div className="icon-label">{fileType || 'file'}</div>
-                </div>
-              )
+            const renderIconTemplate = (it: any, isParentFolder = false) => {
+            const fileType = String(getValue(it, 'FileType') ?? '').toLowerCase().trim()
+            const fileName = String(getValue(it, 'Title') ?? '').toLowerCase()
+            const isFolderItem = Boolean(getValue(it, 'IsFolder') || getValue(it, 'FSObjType') === 1)
+
+            let ext = ''
+            if (fileName.includes('.')) {
+              ext = fileName.split('.').pop() || ''
             }
+
+            if (!ext && fileType) {
+              ext = fileType.replace('.', '').trim()
+            }
+
+            let iconSrc = pdfIcon
+
+            // ⭐ Parent folder gets highest priority
+            if (isParentFolder) iconSrc = parentFolderIcon
+            else if (isFolderItem) iconSrc = folderIcon
+            else if (ext === 'pdf') iconSrc = pdfIcon
+            else if (ext === 'doc' || ext === 'docx') iconSrc = docxIcon
+            else if (ext === 'xls' || ext === 'xlsx' || ext === 'csv') iconSrc = xlsxIcon
+            else if (ext === 'ppt' || ext === 'pptx') iconSrc = pptxIcon
+            else if (ext === 'zip') iconSrc = zipIcon
+            else if (ext === 'rar') iconSrc = rarIcon
+            else if (ext === 'mp3') iconSrc = mp3Icon
+            else if (ext === 'mp4') iconSrc = mp4Icon
+            else if (ext === 'm4v') iconSrc = m4vIcon
+            else if (ext === 'mov') iconSrc = movIcon
+            else if (ext === 'jpg' || ext === 'jpeg') iconSrc = jpgIcon
+            else if (ext === 'png') iconSrc = pngIcon
+            else if (ext === 'tmp') iconSrc = tmpIcon
+
+            return (
+              <div className="icon-template">
+                <img src={iconSrc} alt={ext || 'file'} className="file-icon" />
+              </div>
+            )
+          }
+
+
 
     return (
       <div className={'gallery-grid' + (lowerQuery ? ' horizontal' : '')}>
@@ -355,18 +384,20 @@ useEffect(() => {
           ) : (
 
             Object.entries(rootGroupedItems).map(([folderName, files]) => (
-              <article
-                key={folderName}
-                className="gallery-card folder-card"
-                onClick={() => setActiveFolder(folderName)}
-              >
-                <div className="card-body">
-                  <h3 className="card-title">📁 {folderName}</h3>
-                  <div className="card-path">
-                    {files.length} item{files.length !== 1 && 's'}
-                  </div>
+            <article
+              key={folderName}
+              className="gallery-card folder-card"
+              onClick={() => setActiveFolder(folderName)}
+            >
+              {renderIconTemplate({}, true)}   {/* 👈 Parent folder icon */}
+
+              <div className="card-body">
+                <h3 className="card-title">{folderName}</h3>
+                <div className="card-path">
+                  {files.length} item{files.length !== 1 && 's'}
                 </div>
-              </article>
+              </div>
+            </article>
             ))
           )
         )}
