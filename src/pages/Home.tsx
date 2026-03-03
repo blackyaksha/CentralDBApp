@@ -1,132 +1,188 @@
-import { useNavigate } from 'react-router-dom'
-import pdfIcon from '../assets/Icons/pdf.png'
-import docxIcon from '../assets/Icons/docs.png'
-import xlsxIcon from '../assets/Icons/sheets.png'
-import pptxIcon from '../assets/Icons/pptx.png'
-import folderIcon from '../assets/Icons/folder.png'
-import zipIcon from '../assets/Icons/zip-folder.png'
-import movIcon from '../assets/Icons/mov.png'
-import mp3Icon from '../assets/Icons/mp3.png'
-import mp4Icon from '../assets/Icons/mp4.png'
-import m4vIcon from '../assets/Icons/m4v.png'
-import tmpIcon from '../assets/Icons/tmp.png'
-import rarIcon from '../assets/Icons/rar.png'
-import jpgIcon from '../assets/Icons/jpg.png'
-import pngIcon from '../assets/Icons/png.png'
+import { useEffect, useState } from "react";
+import { FileText, FileSpreadsheet } from "lucide-react";
+
+const shortcutFiles = [
+  {
+    id: 1,
+    title: "Q4 Report.docx",
+    type: "DOCX",
+    icon: FileText,
+    accent: {
+      text: "#93c5fd",
+      bg: "rgba(37,99,235,0.12)",
+      border: "rgba(59,130,246,0.2)",
+      dot: "#3b82f6",
+    },
+    url: "https://energyregcomm-my.sharepoint.com/:w:/g/personal/ppis_pd_erc_ph/IQBtb1x9no4NS67kd5wvgo-9ATxXBwOvHeN2JaapAwXwA5c",
+  },
+  {
+    id: 2,
+    title: "Budget 2026.xlsx",
+    type: "XLSX",
+    icon: FileSpreadsheet,
+    accent: {
+      text: "#86efac",
+      bg: "rgba(22,163,74,0.12)",
+      border: "rgba(34,197,94,0.2)",
+      dot: "#22c55e",
+    },
+    url: "https://energyregcomm-my.sharepoint.com/:x:/g/personal/ppis_pd_erc_ph/IQDi88TwO0rtSouG2f5r_DUxAXcP4gSD2pwXa9WURX3HO5g?e=vFGT8i",
+  },
+];
 
 export default function Home() {
-  const navigate = useNavigate()
+  const [username, setUsername] = useState("User");
+  const [hovered, setHovered] = useState<number | null>(null);
 
-  // 🔹 Replace URLs with your actual OneDrive shareable links
-  const FILES = [
-    {
-      title: 'Planning Guidelines Document for PD Team',
-      url: 'https://energyregcomm-my.sharepoint.com/:w:/g/personal/ppis_pd_erc_ph/IQBtb1x9no4NS67kd5wvgo-9ATxXBwOvHeN2JaapAwXwA5c',
-      icon: docxIcon
-    },
-    {
-      title: 'Project Tracker 2026',
-      url: 'https://onedrive.live.com/...replace-with-link...',
-      icon: xlsxIcon
-    },
-    {
-      title: 'Presentation Slides Q1',
-      url: 'https://onedrive.live.com/...replace-with-link...',
-      icon: pptxIcon
-    },
-    {
-      title: 'Policy Document PDF',
-      url: 'https://onedrive.live.com/...replace-with-link...',
-      icon: pdfIcon
-    }
-  ]
+  useEffect(() => {
+    const stored = sessionStorage.getItem("username");
+    if (stored) setUsername(stored);
+  }, []);
 
   return (
-    <div style={{ padding: 40, textAlign: 'center', color: '#131212ff' }}>
-      <h1>Welcome Planning Division Team!</h1>
-
-      {/* 🔹 File Thumbnails */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 20,
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-          marginTop: 40
-        }}
-      >
-        {FILES.map((f) => (
-          <div
-            key={f.title}
-            onClick={() => window.open(f.url, '_blank')}
-            style={{
-              width: 180,
-              cursor: 'pointer',
-              border: '1px solid #131212ff',
-              borderRadius: 8,
-              padding: 10,
-              textAlign: 'center',
-              backgroundColor: '#f8f8f8',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-              transition: 'transform 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              ;(e.currentTarget as HTMLDivElement).style.transform = 'scale(1.05)'
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLDivElement).style.transform = 'scale(1)'
-            }}
-          >
-            <img
-              src={f.icon}
-              style={{ width: '100%', height: 150, objectFit: 'cover', borderRadius: 4 }}
-              alt={f.title}
-            />
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: 14,
-                fontWeight: 'bold',
-                whiteSpace: 'normal',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                lineHeight: '1.2em',
-                maxHeight: '2.4em', // allow up to 2 lines
-                color: '#131212ff'
-              }}
-              title={f.title} // show full title on hover
-            >
-              {f.title}
-            </div>
-          </div>
-        ))}
+    <div style={styles.page}>
+      {/* Greeting */}
+      <div style={{ marginBottom: 32 }}>
+        <h1 style={styles.greeting}>
+          Welcome back,{" "}
+          <span style={{ color: "#818cf8" }}>{username}</span>
+        </h1>
+        <p style={styles.greetingSub}>Quick access to your frequently used documents</p>
       </div>
 
-      {/* 🔹 Enter App Button */}
-      <button
-        onClick={() => navigate('/current')}
-        style={{
-          marginTop: 50,
-          padding: '12px 24px',
-          fontSize: 16,
-          fontWeight: 'bold',
-          borderRadius: 6,
-          cursor: 'pointer',
-          backgroundColor: '#131212ff',
-          color: 'white',
-          border: 'none',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-          transition: 'background-color 0.2s',
-        }}
-        onMouseEnter={(e) =>
-          ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#0f0d0d')
-        }
-        onMouseLeave={(e) =>
-          ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#131212ff')
-        }
-      >
-        Enter App
-      </button>
+      {/* Section label */}
+      <p style={styles.sectionLabel}>Pinned Files</p>
+
+      {/* Cards */}
+      <div style={styles.grid}>
+        {shortcutFiles.map((file) => {
+          const Icon = file.icon;
+          const isHovered = hovered === file.id;
+
+          return (
+            <a
+              key={file.id}
+              href={file.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onMouseEnter={() => setHovered(file.id)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                ...styles.card,
+                background: isHovered ? file.accent.bg : "rgba(255,255,255,0.03)",
+                borderColor: isHovered ? file.accent.border : "rgba(255,255,255,0.07)",
+                transform: isHovered ? "translateY(-2px)" : "none",
+                boxShadow: isHovered ? "0 8px 24px rgba(0,0,0,0.25)" : "none",
+              }}
+            >
+              {/* Icon */}
+              <div
+                style={{
+                  ...styles.iconBox,
+                  background: file.accent.bg,
+                  border: `1px solid ${file.accent.border}`,
+                }}
+              >
+                <Icon size={18} color={file.accent.text} />
+              </div>
+
+              {/* Text */}
+              <div style={styles.cardText}>
+                <span style={styles.cardTitle}>{file.title}</span>
+                <span style={{ ...styles.cardType, color: file.accent.text }}>{file.type}</span>
+              </div>
+
+              {/* Active dot */}
+              {isHovered && (
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: file.accent.dot,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+            </a>
+          );
+        })}
+      </div>
     </div>
-  )
+  );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    padding: "36px 32px",
+    minHeight: "100%",
+    background: "#0f1117",
+    fontFamily: "'Geist', 'DM Sans', system-ui, sans-serif",
+  },
+  greeting: {
+    margin: "0 0 6px 0",
+    fontSize: 22,
+    fontWeight: 600,
+    color: "#fff",
+    letterSpacing: "-0.02em",
+  },
+  greetingSub: {
+    margin: 0,
+    fontSize: 13.5,
+    color: "rgba(255,255,255,0.38)",
+  },
+  sectionLabel: {
+    margin: "0 0 10px 0",
+    fontSize: 10,
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.22)",
+    textTransform: "uppercase",
+    letterSpacing: "0.1em",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+    gap: 12,
+  },
+  card: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    padding: "14px 16px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.07)",
+    textDecoration: "none",
+    transition: "all 0.18s ease",
+    cursor: "pointer",
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 9,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  cardText: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+    minWidth: 0,
+  },
+  cardTitle: {
+    fontSize: 13.5,
+    fontWeight: 500,
+    color: "rgba(255,255,255,0.85)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  cardType: {
+    fontSize: 10.5,
+    fontWeight: 600,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+  },
+};

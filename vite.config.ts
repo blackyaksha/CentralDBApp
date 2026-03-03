@@ -8,6 +8,11 @@ export default defineConfig({
   server: {
     host: "::",
     port: 3000,
+    proxy: {
+      '/fetch-files': {
+        target: 'http://localhost:3001'
+      }
+    }
   },
   plugins: [react()],
   resolve: {

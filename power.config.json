@@ -13,7 +13,8 @@
       "id": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
       "displayName": "SharePoint",
       "dataSources": [
-        "database"
+        "database",
+        "sharepointonline"
       ],
       "authenticationType": null,
       "sharedConnectionId": null,
@@ -28,5 +29,16 @@
       }
     }
   },
-  "databaseReferences": {}
+  "databaseReferences": {
+    "default.cds": {
+      "dataSources": {
+        "databases": {
+          "entitySetName": "cr446_databases",
+          "logicalName": "cr446_database"
+        }
+      },
+      "environmentVariableName": ""
+    }
+  },
+  "version": "1.0"
 }

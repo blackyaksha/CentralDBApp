@@ -1,0 +1,9 @@
+{
+  "overridableProperties": {
+    "contentSecurityPolicy": {
+      "connect-src": [
+        "https://e0ffbd29750ce27abc181dd6358937.97.environment.api.powerplatform.com"
+      ]
+    }
+  }
+}

@@ -120,6 +120,32 @@
           "maximum": 1.7976931348623157e+308,
           "minimum": -1.7976931348623157e+308
         },
+        "Identifier": {
+          "title": "Identifier",
+          "type": "string",
+          "x-ms-permission": "read-write",
+          "x-ms-sort": "asc,desc",
+          "x-ms-capabilities": {
+            "filterFunctions": [
+              "eq",
+              "startswith"
+            ]
+          },
+          "maxLength": 255
+        },
+        "DriveItemID": {
+          "title": "DriveItemID",
+          "type": "string",
+          "x-ms-permission": "read-write",
+          "x-ms-sort": "asc,desc",
+          "x-ms-capabilities": {
+            "filterFunctions": [
+              "eq",
+              "startswith"
+            ]
+          },
+          "maxLength": 255
+        },
         "Created": {
           "title": "Created",
           "description": "When this item was created.",
@@ -720,11 +746,15 @@
           "Mirror_ID",
           "CustomID",
           "PathKey",
+          "DriveItemID",
+          "Identifier",
           "{Attachments}"
         ],
         "propertiesCompactDisplayOrder": [
           "Title",
           "CustomID",
+          "Identifier",
+          "DriveItemID",
           "Created",
           "PathKey",
           "Mirror_ID",
@@ -736,6 +766,8 @@
         "propertiesTabularDisplayOrder": [
           "Title",
           "CustomID",
+          "Identifier",
+          "DriveItemID",
           "Created",
           "PathKey",
           "Mirror_ID",

@@ -5,7 +5,11 @@
 
 // Models
 export * as CommonModels from './models/CommonModels';
+export * as Cr446_databasesModel from './models/Cr446_databasesModel';
 export * as DatabaseModel from './models/DatabaseModel';
+export * as SharePointModel from './models/SharePointModel';
 
 // Services
+export * from './services/Cr446_databasesService';
 export * from './services/DatabaseService';
+export * from './services/SharePointService';

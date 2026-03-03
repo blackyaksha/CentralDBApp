@@ -23,10 +23,12 @@ export interface EditorValue {
   JobTitle: string;
 }
 
-export interface Database {
+export interface DatabaseBase {
   ID?: number;
   Title?: string;
   CustomID?: number;
+  Identifier?: string;
+  DriveItemID?: string;
   Created?: string;
   PathKey?: string;
   Mirror_ID?: number;
@@ -38,12 +40,18 @@ export interface Database {
   ComplianceAssetId?: string;
   Modified?: string;
   "Author#Claims"?: string;
-  Author?: AuthorValue;
   "Editor#Claims"?: string;
-  Editor?: EditorValue;
   "{Identifier}"?: string;
   "{IsFolder}"?: boolean;
-  "{Thumbnail}"?: Record<string, unknown>;
+  "{Thumbnail}"?: {
+    "@odata.type"?: string;
+    // URL to the small, highly compressed size thumbnail of the item, if available.
+    Small?: string;
+    // URL to the standard size thumbnail of the item, if available.
+    Medium?: string;
+    // URL to the largest size thumbnail of the item, if available.
+    Large?: string;
+  };
   "{Link}"?: string;
   "{Name}"?: string;
   "{FilenameWithExtension}"?: string;
@@ -52,11 +60,30 @@ export interface Database {
   "{ModerationStatus}"?: string;
   "{ModerationComment}"?: string;
   "{ContentType}#Id"?: string;
-  "{ContentType}"?: Record<string, unknown>;
+  "{ContentType}"?: {
+    "@odata.type"?: string;
+    Id?: string;
+    Name?: string;
+  };
   "{HasAttachments}"?: boolean;
   "{Attachments}@odata.type"?: string;
-  "{Attachments}"?: unknown;
+  "{Attachments}"?: {
+   "@odata.type"?: string;
+   Id?: string;
+   AbsoluteUri?: string;
+   DisplayName?: string;
+ }[];
   "{VersionNumber}"?: string;
   "{TriggerWindowStartToken}"?: string;
   "{TriggerWindowEndToken}"?: string;
+}
+
+export interface DatabaseRead extends DatabaseBase {
+  Author?: AuthorValue;
+  Editor?: EditorValue;
+}
+
+export interface DatabaseWrite extends DatabaseBase {
+  Author?: AuthorValue;
+  Editor?: EditorValue;
 }

@@ -1,0 +1,42 @@
+swagger: '2.0'
+info:
+  title: centraldb
+  description: Get SharePoint items (paginated) via Power Automate Flow
+  version: '1.0'
+host: placeholder
+basePath: /
+schemes:
+  - https
+paths:
+  /items:
+    get:
+      summary: Get SharePoint items
+      description: Returns paginated items from SharePoint via the Flow
+      operationId: GetItems
+      parameters:
+        - name: pageSize
+          in: query
+          required: false
+          type: integer
+          description: Number of items to return per page
+        - name: nextLink
+          in: query
+          required: false
+          type: string
+          description: Pagination pointer from previous call
+      responses:
+        '200':
+          description: Successful response with items and nextLink
+          schema:
+            type: object
+            properties:
+              items:
+                type: array
+                items:
+                  type: object
+                  description: SharePoint list item
+              nextLink:
+                type: string
+                description: URL or token for the next page (null if last page)
+securityDefinitions: {}
+security: []
