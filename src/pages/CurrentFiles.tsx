@@ -1,11 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
-import { ArrowLeft } from 'lucide-react'
 import type { DatabaseRead } from '../generated/models/DatabaseModel'
 import pdfIcon from '../assets/Icons/pdf.png'
 import docxIcon from '../assets/Icons/docs.png'
 import xlsxIcon from '../assets/Icons/sheets.png'
 import pptxIcon from '../assets/Icons/pptx.png'
-import folderIcon from '../assets/Icons/folder.png'
+import parentIcon from '../assets/Icons/parent.png'
 import zipIcon from '../assets/Icons/zip-folder.png'
 import movIcon from '../assets/Icons/mov.png'
 import mp3Icon from '../assets/Icons/mp3.png'
@@ -15,7 +14,7 @@ import tmpIcon from '../assets/Icons/tmp.png'
 import rarIcon from '../assets/Icons/rar.png'
 import jpgIcon from '../assets/Icons/jpg.png'
 import pngIcon from '../assets/Icons/png.png'
-import parentFolderIcon from '../assets/Icons/parent.png'
+import folderIcon from '../assets/Icons/folder.png'
 
 export default function CurrentFiles() {
   const [items, setItems] = useState<DatabaseRead[] | null>(null)
@@ -23,27 +22,14 @@ export default function CurrentFiles() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({})
-  const [activeFolder, setActiveFolder] = useState<string | null>(null)
   const [nextLink, setNextLink] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
+  const [currentPath, setCurrentPath] = useState<string[]>([])
   const PAGE_SIZE = 5000
 
   const fetchingRef = useRef(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
-
-  const getParentFolder = (path: any): string => {
-    if (!path || typeof path !== 'string') return 'Unknown'
-    const parts = path.split('/').filter(Boolean)
-    return parts[1] ?? 'Unknown'
-  }
-
-  const getDisplayPath = (path: any): string => {
-    if (!path || typeof path !== 'string') return 'Unknown'
-    const parts = path.split('/').filter(Boolean)
-    return parts.slice(0, 2).join('/')
-  }
 
   const fetchAllPages = async (isFirstLoad = false) => {
     if (fetchingRef.current) return
@@ -104,6 +90,87 @@ export default function CurrentFiles() {
   const isFolder = (it: any): boolean =>
     Boolean(getValue(it, 'IsFolder') || getValue(it, 'FSObjType') === 1)
 
+  const getPathParts = (path: string): string[] => {
+    if (!path) return []
+    return path.split('/').filter(p => p.trim() !== '')
+  }
+
+  const getCurrentLevelItems = (allItems: any[]): any[] => {
+    const currentPathStr = currentPath.length > 0 ? currentPath.join('/') + '/' : ''
+    const levelItems: any[] = []
+
+    allItems.forEach(item => {
+      const itemPath = String(getValue(item, 'FilePath') ?? '')
+      const isItemFolder = isFolder(item)
+
+      if (currentPathStr === '') {
+        // Parent folder level - show parent folders (skip Shared Documents)
+        const pathParts = getPathParts(itemPath)
+        if (pathParts.length >= 2) {
+          // Skip "Shared Documents" and get the parent folder
+          const parentFolder = pathParts[1] // Index 1 is the parent folder after Shared Documents
+          const existingFolder = levelItems.find(it =>
+            isFolder(it) && getValue(it, 'Title') === parentFolder && getValue(it, 'isVirtual')
+          )
+          if (!existingFolder && parentFolder) {
+            levelItems.push({
+              Title: parentFolder,
+              FilePath: `Shared Documents/${parentFolder}`,
+              isVirtual: true,
+              IsFolder: true,
+              FSObjType: 1,
+              FileType: 'folder'
+            })
+          }
+        }
+      } else {
+        // Sub-level - show items that are direct children of current path
+        const fullCurrentPath = `Shared Documents/${currentPathStr}`
+        if (itemPath.startsWith(fullCurrentPath)) {
+          const remainingPath = itemPath.substring(fullCurrentPath.length)
+          const pathParts = getPathParts(remainingPath)
+
+          if (pathParts.length === 1) {
+            // Direct child
+            levelItems.push(item)
+          } else if (pathParts.length > 1 && isItemFolder) {
+            // Create virtual folder for next level
+            const nextFolder = pathParts[0]
+            const existingFolder = levelItems.find(it =>
+              isFolder(it) && getValue(it, 'Title') === nextFolder && getValue(it, 'isVirtual')
+            )
+            if (!existingFolder) {
+              levelItems.push({
+                Title: nextFolder,
+                FilePath: fullCurrentPath + nextFolder,
+                isVirtual: true,
+                IsFolder: true,
+                FSObjType: 1,
+                FileType: 'folder'
+              })
+            }
+          }
+        }
+      }
+    })
+
+    // Add parent folder card when inside a parent folder
+    if (currentPath.length === 1) {
+      const parentFolderName = currentPath[0]
+      levelItems.unshift({
+        Title: parentFolderName,
+        FilePath: `Shared Documents/${parentFolderName}`,
+        isVirtual: true,
+        isParentCard: true,
+        IsFolder: true,
+        FSObjType: 1,
+        FileType: 'folder'
+      })
+    }
+
+    return levelItems
+  }
+
   const extractHrefFromFileURL = (val: any): string | null => {
     if (!val) return null
     const SP_DOMAIN = 'https://energyregcomm.sharepoint.com'
@@ -128,16 +195,32 @@ export default function CurrentFiles() {
     return null
   }
 
-  const getIconSrc = (it: any, isParentFolder = false) => {
+  const getIconSrc = (it: any) => {
     const fileType = String(getValue(it, 'FileType') ?? '').toLowerCase().trim()
     const fileName = String(getValue(it, 'Title') ?? '').toLowerCase()
     const isFolderItem = Boolean(getValue(it, 'IsFolder') || getValue(it, 'FSObjType') === 1)
+    const isVirtual = getValue(it, 'isVirtual')
+    const isParentCard = getValue(it, 'isParentCard')
     let ext = ''
     if (fileName.includes('.')) ext = fileName.split('.').pop() || ''
     if (!ext && fileType) ext = fileType.replace('.', '').trim()
 
-    if (isParentFolder) return parentFolderIcon
-    if (isFolderItem) return folderIcon
+    if (isFolderItem) {
+      // Use parent icon for virtual parent folders at root level
+      if (isVirtual && currentPath.length === 0) {
+        return parentIcon
+      }
+      // Use folder icon for parent card (when inside a parent folder)
+      if (isParentCard) {
+        return folderIcon
+      }
+      // Use different folder icons based on FileType or context
+      if (fileType === 'folder' || fileType === '') {
+        return folderIcon // Default folder icon
+      }
+      // You can add more specific folder types here if needed
+      return folderIcon
+    }
     if (ext === 'pdf') return pdfIcon
     if (ext === 'doc' || ext === 'docx') return docxIcon
     if (ext === 'xls' || ext === 'xlsx' || ext === 'csv') return xlsxIcon
@@ -171,105 +254,47 @@ export default function CurrentFiles() {
 
   const lowerQuery = query.trim().toLowerCase()
 
-  const matchesQuery = (it: any) => {
+  const allCurrentLevelItems = items ? getCurrentLevelItems(items) : []
+
+  const filteredItems = allCurrentLevelItems.filter((it: any) => {
     if (!lowerQuery) return true
     const tokens = lowerQuery.split(/\s+/).filter(Boolean)
     const title = String(getValue(it, 'Title') ?? '').toLowerCase()
     const path = String(getValue(it, 'FilePath') ?? '').toLowerCase()
     return tokens.every((t) => title.includes(t) || path.includes(t))
+  })
+
+  const handleItemClick = (item: any) => {
+    const isItemFolder = isFolder(item)
+    const isParentCard = getValue(item, 'isParentCard')
+    const rowHref = extractHrefFromFileURL(getValue(item, 'FileURL'))
+
+    if (isParentCard) {
+      // Open parent folder URL with proper SharePoint site structure
+      const folderName = getValue(item, 'Title')
+      const folderUrl = `https://energyregcomm.sharepoint.com/sites/CentralDatabase/Shared%20Documents/${encodeURIComponent(folderName)}`
+      window.open(folderUrl, '_blank', 'noopener,noreferrer')
+    } else if (isItemFolder) {
+      // Navigate into folder
+      const folderName = getValue(item, 'Title')
+      setCurrentPath([...currentPath, folderName])
+      setQuery('') // Clear search when navigating
+    } else if (rowHref) {
+      // Open file URL
+      window.open(rowHref, '_blank', 'noopener,noreferrer')
+    }
   }
 
-  const baseItems = activeFolder
-    ? (items ?? []).filter((it: any) => getParentFolder(getValue(it, 'FilePath')) === activeFolder)
-    : (items ?? [])
+  const navigateToPath = (pathIndex: number) => {
+    setCurrentPath(currentPath.slice(0, pathIndex + 1))
+    setQuery('')
+  }
 
-  const searchedItems = baseItems.filter(matchesQuery)
-
-  const rootGroupedItems = !activeFolder
-    ? (items ?? []).reduce<Record<string, any[]>>((acc, it) => {
-        const path = getValue(it, 'FilePath')
-        const parent = getParentFolder(path)
-        if (!acc[parent]) acc[parent] = []
-        acc[parent].push(it)
-        return acc
-      }, {})
-    : {}
-
-  const renderCard = (it: any, idx: number, keyStr: string) => {
-    const rowHref = extractHrefFromFileURL(getValue(it, 'FileURL'))
-    const title = getValue(it, 'Title') ?? `Item ${idx + 1}`
-    const path = getValue(it, 'FilePath') ?? ''
-    const expanded = !!expandedMap[keyStr]
-    const isHov = hoveredCard === keyStr
-    const isFolderItem = isFolder(it)
-
-    return (
-      <article
-        key={keyStr}
-        onMouseEnter={() => setHoveredCard(keyStr)}
-        onMouseLeave={() => setHoveredCard(null)}
-        onClick={() => {
-          if (isFolderItem) {
-            setActiveFolder(getParentFolder(path))
-          } else if (rowHref) {
-            window.open(rowHref, '_blank', 'noopener,noreferrer')
-          }
-        }}
-        style={{
-          ...s.card,
-          background: isHov
-            ? isFolderItem ? 'rgba(45,74,124,0.4)' : 'rgba(37,56,83,0.8)'
-            : '#1a2f52',
-          borderColor: isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
-          cursor: isFolderItem || rowHref ? 'pointer' : 'default',
-        }}
-      >
-        <img
-          src={getIconSrc(it)}
-          alt=""
-          style={s.fileIcon}
-        />
-        <div style={s.cardBody}>
-          <div style={s.cardHeader}>
-            <h3
-              style={{
-                ...s.cardTitle,
-                WebkitLineClamp: expanded ? 'unset' : 1,
-                whiteSpace: expanded ? 'normal' : 'nowrap',
-              }}
-              title={String(title)}
-            >
-              {String(title)}
-            </h3>
-            <button
-              style={s.expandBtn}
-              aria-expanded={expanded}
-              onClick={(e) => {
-                e.stopPropagation()
-                setExpandedMap((m) => ({ ...m, [keyStr]: !m[keyStr] }))
-              }}
-            >
-              <svg
-                width="16" height="16" viewBox="0 0 24 24" fill="none"
-                style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
-              >
-                <path d="M6 9l6 6 6-6" stroke="#a3b8d9" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          </div>
-          <p
-            style={{
-              ...s.cardPath,
-              WebkitLineClamp: expanded ? 'unset' : 1,
-              whiteSpace: expanded ? 'normal' : 'nowrap',
-            }}
-            title={String(path)}
-          >
-            {String(path)}
-          </p>
-        </div>
-      </article>
-    )
+  const goBack = () => {
+    if (currentPath.length > 0) {
+      setCurrentPath(currentPath.slice(0, -1))
+      setQuery('')
+    }
   }
 
   return (
@@ -287,111 +312,82 @@ export default function CurrentFiles() {
           <button onClick={() => setQuery('')} style={s.clearBtn}>×</button>
         )}
         <span style={s.totalLabel}>
-          Total: {items?.length ?? 0} items
+          {lowerQuery
+            ? `${filteredItems.length} of ${currentPath.length === 0 ? (items?.length ?? 0) : allCurrentLevelItems.length} items`
+            : `Total: ${currentPath.length === 0 ? (items?.length ?? 0) : allCurrentLevelItems.length} items`}
         </span>
       </div>
 
-      {/* Gallery */}
+      {/* Breadcrumb Navigation */}
+      <div style={s.breadcrumb}>
+        {currentPath.length === 0 ? (
+          <span style={{ color: '#a3b8d9', fontSize: 14 }}></span>
+        ) : (
+          <>
+            <button
+              onClick={() => { setCurrentPath([]); setQuery('') }}
+              style={s.breadcrumbItem}
+            >
+              {currentPath[0]}
+            </button>
+            {currentPath.slice(1).map((segment, index) => (
+              <span key={index} style={s.breadcrumbSeparator}>
+                {' / '}
+                <button
+                  onClick={() => navigateToPath(index + 1)}
+                  style={s.breadcrumbItem}
+                >
+                  {segment}
+                </button>
+              </span>
+            ))}
+            <button onClick={goBack} style={s.backBtn}>
+              ← Back
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Flat grid of current level items */}
       {!loading && items && (
-        <div style={s.galleryWrapper}>
-          {/* BACK button */}
-          {activeFolder && (
-            <div style={{ marginBottom: 16 }}>
-              <button
-                onClick={() => setActiveFolder(null)}
-                onMouseEnter={e => (e.currentTarget.style.background = '#3d5a8c')}
-                onMouseLeave={e => (e.currentTarget.style.background = '#2d4a7c')}
+        <div style={s.grid}>
+          {filteredItems.map((it: any, idx: number) => {
+            const keyStr = String(getValue(it, 'ID') ?? getValue(it, 'Title') ?? idx)
+            const title = getValue(it, 'Title') ?? `Item ${idx + 1}`
+            const path = getValue(it, 'FilePath') ?? ''
+            const isItemFolder = isFolder(it)
+            const isHov = hoveredCard === keyStr
+
+            return (
+              <article
+                key={keyStr}
+                onMouseEnter={() => setHoveredCard(keyStr)}
+                onMouseLeave={() => setHoveredCard(null)}
+                onClick={() => handleItemClick(it)}
                 style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '8px 18px',
-                  borderRadius: 999,
-                  border: 'none',
-                  background: '#2d4a7c',
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 500,
+                  ...s.card,
+                  background: isHov ? 'rgba(37,56,83,0.8)' : '#1a2f52',
+                  borderColor: isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
                   cursor: 'pointer',
-                  transition: 'background 0.15s ease',
-                  fontFamily: 'inherit',
                 }}
               >
-                <ArrowLeft size={15} />
-                <span>Back</span>
-              </button>
-            </div>
-          )}
-
-          <div style={s.grid}>
-            {/* ROOT: folder groups */}
-            {!activeFolder && !lowerQuery &&
-              Object.entries(rootGroupedItems).map(([folderName, files]) => {
-                const isHov = hoveredCard === `folder-${folderName}`
-                return (
-                  <article
-                    key={folderName}
-                    onMouseEnter={() => setHoveredCard(`folder-${folderName}`)}
-                    onMouseLeave={() => setHoveredCard(null)}
-                    onClick={() => setActiveFolder(folderName)}
-                    style={{
-                      ...s.card,
-                      background: isHov ? 'rgba(45,74,124,0.4)' : '#1a2f52',
-                      borderColor: isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <img src={parentFolderIcon} alt="folder" style={s.fileIcon} />
-                    <div style={s.cardBody}>
-                      <h3 style={s.cardTitle}>{folderName}</h3>
-                      <p style={s.cardPath}>{files.length} item{files.length !== 1 && 's'}</p>
-                    </div>
-                  </article>
-                )
-              })
-            }
-
-            {/* ROOT + SEARCH: grouped by path */}
-            {!activeFolder && lowerQuery && (() => {
-              const groupedByPath = searchedItems.reduce<Record<string, any[]>>((acc, it) => {
-                const path = getDisplayPath(getValue(it, 'FilePath'))
-                if (!acc[path]) acc[path] = []
-                acc[path].push(it)
-                return acc
-              }, {})
-
-              return Object.entries(groupedByPath).map(([pathLabel, itemsInPath]) => (
-                <div key={pathLabel} style={{ gridColumn: '1 / -1' }}>
-                  <div style={s.pathDivider}>
-                    <span style={s.pathDividerLabel}>{pathLabel}</span>
-                  </div>
-                  <div style={s.grid}>
-                    {itemsInPath.map((it: any, idx: number) => {
-                      const keyStr = String(it.ID ?? `${pathLabel}-${idx}`)
-                      return renderCard(it, idx, keyStr)
-                    })}
-                  </div>
+                <img src={getIconSrc(it)} alt="" style={s.fileIcon} />
+                <div style={s.cardBody}>
+                  <h3 style={s.cardTitle} title={String(title)}>
+                    {String(title)}
+                  </h3>
+                  <p style={s.cardPath} title={String(path)}>
+                    {String(path)}
+                  </p>
                 </div>
-              ))
-            })()}
-
-            {/* FOLDER contents */}
-            {activeFolder && (() => {
-              const folders = searchedItems.filter(isFolder)
-              const files = searchedItems.filter(it => !isFolder(it))
-              const orderedItems = [...folders, ...files]
-              return orderedItems.map((it, idx) => {
-                const keyStr = String(getValue(it, 'ID') ?? idx)
-                return renderCard(it, idx, keyStr)
-              })
-            })()}
-          </div>
-
-          {/* Infinite scroll sentinel */}
-          <div ref={sentinelRef} style={{ height: 1, width: '100%' }} />
+              </article>
+            )
+          })}
         </div>
       )}
+
+      {/* Infinite scroll sentinel */}
+      <div ref={sentinelRef} style={{ height: 1, width: '100%' }} />
 
       {/* Loading more spinner */}
       {loadingMore && (
@@ -410,6 +406,41 @@ const s: Record<string, React.CSSProperties> = {
     background: '#0f1f3d',
     fontFamily: 'system-ui, sans-serif',
     boxSizing: 'border-box',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    padding: '8px 12px',
+    background: '#1a2f52',
+    borderRadius: 8,
+    border: '1px solid rgba(255,255,255,0.1)',
+  },
+  breadcrumbItem: {
+    background: 'transparent',
+    border: 'none',
+    color: '#60a5fa',
+    cursor: 'pointer',
+    fontSize: 14,
+    fontFamily: 'inherit',
+    textDecoration: 'underline',
+    padding: '2px 4px',
+  },
+  breadcrumbSeparator: {
+    color: '#a3b8d9',
+    fontSize: 14,
+  },
+  backBtn: {
+    background: '#3d5a8c',
+    border: 'none',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: 12,
+    padding: '4px 8px',
+    borderRadius: 4,
+    marginLeft: 'auto',
+    fontFamily: 'inherit',
   },
   loadingWrap: {
     display: 'flex',
@@ -455,11 +486,6 @@ const s: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
     flexShrink: 0,
   },
-  galleryWrapper: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-  },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
@@ -492,18 +518,11 @@ const s: Record<string, React.CSSProperties> = {
     minWidth: 0,
     flex: 1,
   },
-  cardHeader: {
-    display: 'flex',
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 4,
-  },
   cardTitle: {
     margin: 0,
     fontSize: 13,
     fontWeight: 500,
     color: '#fff',
-    flex: 1,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -515,27 +534,6 @@ const s: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-  },
-  expandBtn: {
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    padding: 2,
-    display: 'flex',
-    alignItems: 'center',
-    flexShrink: 0,
-  },
-  pathDivider: {
-    padding: '10px 4px 6px',
-    marginBottom: 6,
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
-  },
-  pathDividerLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: '#a3b8d9',
-    textTransform: 'uppercase',
-    letterSpacing: '0.06em',
   },
   spinner: {
     width: 28,

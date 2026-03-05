@@ -16,6 +16,8 @@ import jpgIcon from '../assets/Icons/jpg.png'
 import pngIcon from '../assets/Icons/png.png'
 import parentFolderIcon from '../assets/Icons/parent.png'
 
+const ROOT_FOLDER = '1 PD ONGOING' // 🔁 Change this to your root folder name
+
 export default function CurrentFiles() {
   const [items, setItems] = useState<DatabaseRead[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -23,7 +25,6 @@ export default function CurrentFiles() {
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({})
-  const [activeFolder, setActiveFolder] = useState<string | null>(null)
   const [nextLink, setNextLink] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
@@ -32,17 +33,75 @@ export default function CurrentFiles() {
   const fetchingRef = useRef(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  const getParentFolder = (path: any): string => {
-    if (!path || typeof path !== 'string') return 'Unknown'
-    const parts = path.split('/').filter(Boolean)
-    return parts[1] ?? 'Unknown'
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  const getValue = (obj: any, key: string) => {
+    if (!obj) return undefined
+    if (key.includes('.')) return key.split('.').reduce((o, k) => (o ? o[k] : undefined), obj)
+    return obj[key]
   }
 
-  const getDisplayPath = (path: any): string => {
-    if (!path || typeof path !== 'string') return 'Unknown'
-    const parts = path.split('/').filter(Boolean)
-    return parts.slice(0, 2).join('/')
+  const isFolder = (it: any): boolean => {
+    const fileType = String(getValue(it, 'FileType') ?? '').toLowerCase().trim()
+    return fileType === 'folder'
   }
+
+  /**
+   * Given a file path and a folder name, returns the NEXT segment after that folder.
+   * e.g. path = "/root/1 PD ONGOING/SubA/file.pdf", folder = "1 PD ONGOING" → "SubA"
+   */
+  const getNextSegment = (path: any, folderName: string): string | null => {
+    if (!path || typeof path !== 'string') return null
+    const parts = path.split('/').filter(Boolean)
+    const idx = parts.indexOf(folderName)
+    if (idx === -1 || idx >= parts.length - 1) return null
+    return parts[idx + 1]
+  }
+
+  const extractHrefFromFileURL = (val: any): string | null => {
+    if (!val) return null
+    const SP_DOMAIN = 'https://energyregcomm.sharepoint.com'
+    if (typeof val === 'object' && val.Url) {
+      const url = val.Url
+      if (url.startsWith('/')) return `${SP_DOMAIN}${url}`
+      return url
+    }
+    if (typeof val === 'string') {
+      try {
+        const decoded = val.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        if (decoded.startsWith('/')) return `${SP_DOMAIN}${decoded}`
+        if (/<\s*a\b/i.test(decoded)) {
+          const doc = new DOMParser().parseFromString(decoded, 'text/html')
+          const href = doc.querySelector('a')?.getAttribute('href')
+          if (href?.startsWith('/')) return `${SP_DOMAIN}${href}`
+          return href ?? null
+        }
+        if (/^https?:\/\//i.test(decoded)) return decoded
+      } catch { return null }
+    }
+    return null
+  }
+
+  const getIconSrc = (it: any) => {
+    const fileType = String(getValue(it, 'FileType') ?? '').toLowerCase().trim()
+    if (fileType === 'folder') return folderIcon
+    if (fileType === 'pdf') return pdfIcon
+    if (fileType === 'doc' || fileType === 'docx') return docxIcon
+    if (fileType === 'xls' || fileType === 'xlsx' || fileType === 'csv') return xlsxIcon
+    if (fileType === 'ppt' || fileType === 'pptx') return pptxIcon
+    if (fileType === 'zip') return zipIcon
+    if (fileType === 'rar') return rarIcon
+    if (fileType === 'mp3') return mp3Icon
+    if (fileType === 'mp4') return mp4Icon
+    if (fileType === 'm4v') return m4vIcon
+    if (fileType === 'mov') return movIcon
+    if (fileType === 'jpg' || fileType === 'jpeg') return jpgIcon
+    if (fileType === 'png') return pngIcon
+    if (fileType === 'tmp') return tmpIcon
+    return pdfIcon
+  }
+
+  // ─── Fetch ───────────────────────────────────────────────────────────────────
 
   const fetchAllPages = async (isFirstLoad = false) => {
     if (fetchingRef.current) return
@@ -62,6 +121,7 @@ export default function CurrentFiles() {
           body: JSON.stringify(body),
         }
       )
+      console.log(getValue(items?.[0], 'FilePath'))
 
       if (!response.ok) throw new Error(`Flow request failed: ${response.status}`)
 
@@ -94,64 +154,7 @@ export default function CurrentFiles() {
     return () => observer.disconnect()
   }, [hasMore, nextLink])
 
-  const getValue = (obj: any, key: string) => {
-    if (!obj) return undefined
-    if (key.includes('.')) return key.split('.').reduce((o, k) => (o ? o[k] : undefined), obj)
-    return obj[key]
-  }
-
-  const isFolder = (it: any): boolean =>
-    Boolean(getValue(it, 'IsFolder') || getValue(it, 'FSObjType') === 1)
-
-  const extractHrefFromFileURL = (val: any): string | null => {
-    if (!val) return null
-    const SP_DOMAIN = 'https://energyregcomm.sharepoint.com'
-    if (typeof val === 'object' && val.Url) {
-      const url = val.Url
-      if (url.startsWith('/')) return `${SP_DOMAIN}${url}`
-      return url
-    }
-    if (typeof val === 'string') {
-      try {
-        const decoded = val.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-        if (decoded.startsWith('/')) return `${SP_DOMAIN}${decoded}`
-        if (/<\s*a\b/i.test(decoded)) {
-          const doc = new DOMParser().parseFromString(decoded, 'text/html')
-          const href = doc.querySelector('a')?.getAttribute('href')
-          if (href?.startsWith('/')) return `${SP_DOMAIN}${href}`
-          return href ?? null
-        }
-        if (/^https?:\/\//i.test(decoded)) return decoded
-      } catch { return null }
-    }
-    return null
-  }
-
-  const getIconSrc = (it: any, isParentFolder = false) => {
-    const fileType = String(getValue(it, 'FileType') ?? '').toLowerCase().trim()
-    const fileName = String(getValue(it, 'Title') ?? '').toLowerCase()
-    const isFolderItem = Boolean(getValue(it, 'IsFolder') || getValue(it, 'FSObjType') === 1)
-    let ext = ''
-    if (fileName.includes('.')) ext = fileName.split('.').pop() || ''
-    if (!ext && fileType) ext = fileType.replace('.', '').trim()
-
-    if (isParentFolder) return parentFolderIcon
-    if (isFolderItem) return folderIcon
-    if (ext === 'pdf') return pdfIcon
-    if (ext === 'doc' || ext === 'docx') return docxIcon
-    if (ext === 'xls' || ext === 'xlsx' || ext === 'csv') return xlsxIcon
-    if (ext === 'ppt' || ext === 'pptx') return pptxIcon
-    if (ext === 'zip') return zipIcon
-    if (ext === 'rar') return rarIcon
-    if (ext === 'mp3') return mp3Icon
-    if (ext === 'mp4') return mp4Icon
-    if (ext === 'm4v') return m4vIcon
-    if (ext === 'mov') return movIcon
-    if (ext === 'jpg' || ext === 'jpeg') return jpgIcon
-    if (ext === 'png') return pngIcon
-    if (ext === 'tmp') return tmpIcon
-    return pdfIcon
-  }
+  // ─── Loading / Error states ───────────────────────────────────────────────
 
   if (loading) return (
     <div style={s.page}>
@@ -168,6 +171,8 @@ export default function CurrentFiles() {
     </div>
   )
 
+  // ─── Derived data ─────────────────────────────────────────────────────────
+
   const lowerQuery = query.trim().toLowerCase()
 
   const matchesQuery = (it: any) => {
@@ -178,21 +183,29 @@ export default function CurrentFiles() {
     return tokens.every((t) => title.includes(t) || path.includes(t))
   }
 
-  const baseItems = activeFolder
-    ? (items ?? []).filter((it: any) => getParentFolder(getValue(it, 'FilePath')) === activeFolder)
-    : (items ?? [])
 
-  const searchedItems = baseItems.filter(matchesQuery)
+  // FilePath includes the full path WITH filename
+  // e.g. 'Shared Documents/1 PD ONGOING/file.pdf'
+  // We want ONLY items where FilePath starts with 'Shared Documents/1 PD ONGOING/'
+  // AND has no further subfolders — i.e. only one more segment after ROOT_PATH
+  const ROOT_PATH = 'Shared Documents/1 PD ONGOING'
+  const directChildrenOfRoot = (items ?? []).filter((it: any) => {
+    const filePath = String(getValue(it, 'FilePath') ?? '').trim()
+    const normalized = filePath.startsWith('/') ? filePath.slice(1) : filePath
+    // Must start with ROOT_PATH + '/'
+    if (!normalized.startsWith(ROOT_PATH + '/')) return false
+    // The remainder after ROOT_PATH/ must have no more '/' (direct child only)
+    const remainder = normalized.slice(ROOT_PATH.length + 1)
+    return !remainder.includes('/')
+  }).filter(matchesQuery)
 
-  const rootGroupedItems = !activeFolder
-    ? (items ?? []).reduce<Record<string, any[]>>((acc, it) => {
-        const path = getValue(it, 'FilePath')
-        const parent = getParentFolder(path)
-        if (!acc[parent]) acc[parent] = []
-        acc[parent].push(it)
-        return acc
-      }, {})
-    : {}
+  // All items under ROOT_FOLDER (for total count)
+  const itemsUnderRoot = (items ?? []).filter((it: any) => {
+    const filePath = String(getValue(it, 'FilePath') ?? '')
+    return filePath.split('/').filter(Boolean).includes(ROOT_FOLDER)
+  })
+
+  // ─── Render file card ─────────────────────────────────────────────────────
 
   const renderCard = (it: any, idx: number, keyStr: string) => {
     const rowHref = extractHrefFromFileURL(getValue(it, 'FileURL'))
@@ -208,11 +221,7 @@ export default function CurrentFiles() {
         onMouseEnter={() => setHoveredCard(keyStr)}
         onMouseLeave={() => setHoveredCard(null)}
         onClick={() => {
-          if (isFolderItem) {
-            setActiveFolder(getParentFolder(path))
-          } else if (rowHref) {
-            window.open(rowHref, '_blank', 'noopener,noreferrer')
-          }
+          if (rowHref) window.open(rowHref, '_blank', 'noopener,noreferrer')
         }}
         style={{
           ...s.card,
@@ -220,14 +229,10 @@ export default function CurrentFiles() {
             ? isFolderItem ? 'rgba(45,74,124,0.4)' : 'rgba(37,56,83,0.8)'
             : '#1a2f52',
           borderColor: isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
-          cursor: isFolderItem || rowHref ? 'pointer' : 'default',
+          cursor: rowHref ? 'pointer' : 'default',
         }}
       >
-        <img
-          src={getIconSrc(it)}
-          alt=""
-          style={s.fileIcon}
-        />
+        <img src={getIconSrc(it)} alt="" style={s.fileIcon} />
         <div style={s.cardBody}>
           <div style={s.cardHeader}>
             <h3
@@ -271,6 +276,10 @@ export default function CurrentFiles() {
     )
   }
 
+  // ─── Render ───────────────────────────────────────────────────────────────
+
+  // directChildrenOfRoot already computed above (direct children of ROOT_FOLDER, filtered by query)
+
   return (
     <div style={s.page}>
       {/* Search bar */}
@@ -286,97 +295,20 @@ export default function CurrentFiles() {
           <button onClick={() => setQuery('')} style={s.clearBtn}>×</button>
         )}
         <span style={s.totalLabel}>
-          Total: {items?.length ?? 0} items
+          Total: {itemsUnderRoot.length} items
         </span>
       </div>
 
       {/* Gallery */}
       {!loading && items && (
         <div style={s.galleryWrapper}>
-          {/* BACK button */}
-          {activeFolder && (
-            <article
-              onClick={() => setActiveFolder(null)}
-              onMouseEnter={() => setHoveredCard('__back')}
-              onMouseLeave={() => setHoveredCard(null)}
-              style={{
-                ...s.card,
-                background: hoveredCard === '__back' ? 'rgba(45,74,124,0.4)' : '#1a2f52',
-                borderColor: hoveredCard === '__back' ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
-                cursor: 'pointer',
-                marginBottom: 4,
-              }}
-            >
-              <img src={parentFolderIcon} alt="back" style={s.fileIcon} />
-              <div style={s.cardBody}>
-                <h3 style={s.cardTitle}>⬅ Back</h3>
-                <p style={s.cardPath}>Return to parent folders</p>
-              </div>
-            </article>
-          )}
 
           <div style={s.grid}>
-            {/* ROOT: folder groups */}
-            {!activeFolder && !lowerQuery &&
-              Object.entries(rootGroupedItems).map(([folderName, files]) => {
-                const isHov = hoveredCard === `folder-${folderName}`
-                return (
-                  <article
-                    key={folderName}
-                    onMouseEnter={() => setHoveredCard(`folder-${folderName}`)}
-                    onMouseLeave={() => setHoveredCard(null)}
-                    onClick={() => setActiveFolder(folderName)}
-                    style={{
-                      ...s.card,
-                      background: isHov ? 'rgba(45,74,124,0.4)' : '#1a2f52',
-                      borderColor: isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <img src={parentFolderIcon} alt="folder" style={s.fileIcon} />
-                    <div style={s.cardBody}>
-                      <h3 style={s.cardTitle}>{folderName}</h3>
-                      <p style={s.cardPath}>{files.length} item{files.length !== 1 && 's'}</p>
-                    </div>
-                  </article>
-                )
-              })
-            }
-
-            {/* ROOT + SEARCH: grouped by path */}
-            {!activeFolder && lowerQuery && (() => {
-              const groupedByPath = searchedItems.reduce<Record<string, any[]>>((acc, it) => {
-                const path = getDisplayPath(getValue(it, 'FilePath'))
-                if (!acc[path]) acc[path] = []
-                acc[path].push(it)
-                return acc
-              }, {})
-
-              return Object.entries(groupedByPath).map(([pathLabel, itemsInPath]) => (
-                <div key={pathLabel} style={{ gridColumn: '1 / -1' }}>
-                  <div style={s.pathDivider}>
-                    <span style={s.pathDividerLabel}>{pathLabel}</span>
-                  </div>
-                  <div style={s.grid}>
-                    {itemsInPath.map((it: any, idx: number) => {
-                      const keyStr = String(it.ID ?? `${pathLabel}-${idx}`)
-                      return renderCard(it, idx, keyStr)
-                    })}
-                  </div>
-                </div>
-              ))
-            })()}
-
-            {/* FOLDER contents */}
-            {activeFolder && (() => {
-              const folders = searchedItems.filter(isFolder)
-              const files = searchedItems.filter(it => !isFolder(it))
-              const orderedItems = [...folders, ...files]
-              return orderedItems.map((it, idx) => {
-                const keyStr = String(getValue(it, 'ID') ?? idx)
-                return renderCard(it, idx, keyStr)
-              })
-            })()}
+            {/* Show only direct children of ROOT_FOLDER */}
+            {directChildrenOfRoot.map((it: any, idx: number) => {
+              const keyStr = String(getValue(it, 'ID') ?? idx)
+              return renderCard(it, idx, keyStr)
+            })}
           </div>
 
           {/* Infinite scroll sentinel */}
