@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import type { DatabaseRead } from '../generated/models/DatabaseModel'
 import pdfIcon from '../assets/Icons/pdf.png'
 import docxIcon from '../assets/Icons/docs.png'
@@ -256,13 +256,39 @@ export default function CurrentFiles() {
 
   const allCurrentLevelItems = items ? getCurrentLevelItems(items) : []
 
-  const filteredItems = allCurrentLevelItems.filter((it: any) => {
+  const matchesQuery = (it: any) => {
     if (!lowerQuery) return true
     const tokens = lowerQuery.split(/\s+/).filter(Boolean)
     const title = String(getValue(it, 'Title') ?? '').toLowerCase()
     const path = String(getValue(it, 'FilePath') ?? '').toLowerCase()
     return tokens.every((t) => title.includes(t) || path.includes(t))
-  })
+  }
+
+  // group search results by parent folder when there is a query and at root
+  const searchGroups: Record<string, any[]> = {}
+  if (lowerQuery && currentPath.length === 0 && items) {
+    items.forEach((it) => {
+      if (!matchesQuery(it)) return
+      const filePath = String(getValue(it, 'FilePath') ?? '').trim()
+      const parts = filePath.split('/').filter(Boolean)
+      const parent = parts.length >= 2 ? parts[1] : '(root)'
+      if (!searchGroups[parent]) searchGroups[parent] = []
+      searchGroups[parent].push(it)
+    })
+    // sort each group as before (folders first)
+    Object.keys(searchGroups).forEach((key) => {
+      searchGroups[key].sort((a, b) => {
+        const aFolder = isFolder(a) ? 0 : 1
+        const bFolder = isFolder(b) ? 0 : 1
+        if (aFolder !== bFolder) return aFolder - bFolder
+        const aTitle = String(getValue(a, 'Title') ?? '').toLowerCase()
+        const bTitle = String(getValue(b, 'Title') ?? '').toLowerCase()
+        return aTitle.localeCompare(bTitle)
+      })
+    })
+  }
+
+  const filteredItems = allCurrentLevelItems.filter(matchesQuery)
 
   const handleItemClick = (item: any) => {
     const isItemFolder = isFolder(item)
@@ -348,42 +374,95 @@ export default function CurrentFiles() {
         )}
       </div>
 
-      {/* Flat grid of current level items */}
+      {/* Flat grid of current level items or grouped search results */}
       {!loading && items && (
-        <div style={s.grid}>
-          {filteredItems.map((it: any, idx: number) => {
-            const keyStr = String(getValue(it, 'ID') ?? getValue(it, 'Title') ?? idx)
-            const title = getValue(it, 'Title') ?? `Item ${idx + 1}`
-            const path = getValue(it, 'FilePath') ?? ''
-            const isItemFolder = isFolder(it)
-            const isHov = hoveredCard === keyStr
+        <>
+          {lowerQuery && currentPath.length === 0 ? (
+            <div>
+              {Object.keys(searchGroups)
+                .sort((a, b) => a.localeCompare(b))
+                .map((parent) => {
+                  const header = `Shared Documents/${parent}`
+                  const groupItems = searchGroups[parent]
+                  return (
+                    <React.Fragment key={parent}>
+                      <div style={s.pathDivider}>
+                        <span style={s.pathDividerLabel}>{header}</span>
+                      </div>
+                      <div style={s.grid}>
+                        {groupItems.map((it: any, idx: number) => {
+                          const keyStr = String(getValue(it, 'ID') ?? getValue(it, 'Title') ?? idx)
+                          const title = getValue(it, 'Title') ?? `Item ${idx + 1}`
+                          const path = getValue(it, 'FilePath') ?? ''
+                          const isItemFolder = isFolder(it)
+                          const isHov = hoveredCard === keyStr
+                          return (
+                            <article
+                              key={keyStr}
+                              onMouseEnter={() => setHoveredCard(keyStr)}
+                              onMouseLeave={() => setHoveredCard(null)}
+                              onClick={() => handleItemClick(it)}
+                              style={{
+                                ...s.card,
+                                background: isHov ? 'rgba(37,56,83,0.8)' : '#1a2f52',
+                                borderColor: isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <img src={getIconSrc(it)} alt="" style={s.fileIcon} />
+                              <div style={s.cardBody}>
+                                <h3 style={s.cardTitle} title={String(title)}>
+                                  {String(title)}
+                                </h3>
+                                <p style={s.cardPath} title={String(path)}>
+                                  {String(path)}
+                                </p>
+                              </div>
+                            </article>
+                          )
+                        })}
+                      </div>
+                    </React.Fragment>
+                  )
+                })}
+            </div>
+          ) : (
+            <div style={s.grid}>
+              {filteredItems.map((it: any, idx: number) => {
+                const keyStr = String(getValue(it, 'ID') ?? getValue(it, 'Title') ?? idx)
+                const title = getValue(it, 'Title') ?? `Item ${idx + 1}`
+                const path = getValue(it, 'FilePath') ?? ''
+                const isItemFolder = isFolder(it)
+                const isHov = hoveredCard === keyStr
 
-            return (
-              <article
-                key={keyStr}
-                onMouseEnter={() => setHoveredCard(keyStr)}
-                onMouseLeave={() => setHoveredCard(null)}
-                onClick={() => handleItemClick(it)}
-                style={{
-                  ...s.card,
-                  background: isHov ? 'rgba(37,56,83,0.8)' : '#1a2f52',
-                  borderColor: isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
-                  cursor: 'pointer',
-                }}
-              >
-                <img src={getIconSrc(it)} alt="" style={s.fileIcon} />
-                <div style={s.cardBody}>
-                  <h3 style={s.cardTitle} title={String(title)}>
-                    {String(title)}
-                  </h3>
-                  <p style={s.cardPath} title={String(path)}>
-                    {String(path)}
-                  </p>
-                </div>
-              </article>
-            )
-          })}
-        </div>
+                return (
+                  <article
+                    key={keyStr}
+                    onMouseEnter={() => setHoveredCard(keyStr)}
+                    onMouseLeave={() => setHoveredCard(null)}
+                    onClick={() => handleItemClick(it)}
+                    style={{
+                      ...s.card,
+                      background: isHov ? 'rgba(37,56,83,0.8)' : '#1a2f52',
+                      borderColor: isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <img src={getIconSrc(it)} alt="" style={s.fileIcon} />
+                    <div style={s.cardBody}>
+                      <h3 style={s.cardTitle} title={String(title)}>
+                        {String(title)}
+                      </h3>
+                      <p style={s.cardPath} title={String(path)}>
+                        {String(path)}
+                      </p>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* Infinite scroll sentinel */}

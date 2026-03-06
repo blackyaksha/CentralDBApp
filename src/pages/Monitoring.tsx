@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import type { DatabaseRead } from '../generated/models/DatabaseModel'
 import pdfIcon from '../assets/Icons/pdf.png'
 import docxIcon from '../assets/Icons/docs.png'
@@ -18,7 +18,7 @@ import parentFolderIcon from '../assets/Icons/parent.png'
 
 const ROOT_FOLDER = '1 PD ONGOING' // 🔁 Change this to your root folder name
 
-export default function CurrentFiles() {
+export default function Monitoring() {
   const [items, setItems] = useState<DatabaseRead[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -186,23 +186,82 @@ export default function CurrentFiles() {
 
   // FilePath includes the full path WITH filename
   // e.g. 'Shared Documents/1 PD ONGOING/file.pdf'
-  // We want ONLY items where FilePath starts with 'Shared Documents/1 PD ONGOING/'
-  // AND has no further subfolders — i.e. only one more segment after ROOT_PATH
+  // We want to display everything under ROOT_FOLDER, but grouped by the FIRST subfolder
+  // after the root. Items that sit directly in the root (no subfolder) will be grouped
+  // under an empty string key.
   const ROOT_PATH = 'Shared Documents/1 PD ONGOING'
-  const directChildrenOfRoot = (items ?? []).filter((it: any) => {
-    const filePath = String(getValue(it, 'FilePath') ?? '').trim()
-    const normalized = filePath.startsWith('/') ? filePath.slice(1) : filePath
-    // Must start with ROOT_PATH + '/'
-    if (!normalized.startsWith(ROOT_PATH + '/')) return false
-    // The remainder after ROOT_PATH/ must have no more '/' (direct child only)
-    const remainder = normalized.slice(ROOT_PATH.length + 1)
-    return !remainder.includes('/')
-  }).filter(matchesQuery)
 
   // All items under ROOT_FOLDER (for total count)
   const itemsUnderRoot = (items ?? []).filter((it: any) => {
     const filePath = String(getValue(it, 'FilePath') ?? '')
     return filePath.split('/').filter(Boolean).includes(ROOT_FOLDER)
+  })
+
+  // compute list of direct children of root (flat view)
+  const directChildrenOfRoot = (items ?? []).filter((it: any) => {
+    const filePath = String(getValue(it, 'FilePath') ?? '').trim()
+    const normalized = filePath.startsWith('/') ? filePath.slice(1) : filePath
+    // must start with ROOT_PATH + '/'
+    if (!normalized.startsWith(ROOT_PATH + '/')) return false
+    // remainder should have no further '/'
+    const remainder = normalized.slice(ROOT_PATH.length + 1)
+    return !remainder.includes('/')
+  }).filter(matchesQuery)
+
+  // when there is no search query we want to group everything under the
+  // specified root by its first subfolder. Items that live directly in the
+  // root (no subfolder) are collected under an empty key but we purposely
+  // render them without a header so the user never sees “(Root)”.
+  const groupedByParent: Array<[string, any[]]> = (() => {
+    const groups: Record<string, any[]> = {}
+    ;(itemsUnderRoot ?? []).forEach((it: any) => {
+      const filePath = String(getValue(it, 'FilePath') ?? '').trim()
+      const normalized = filePath.startsWith('/') ? filePath.slice(1) : filePath
+      if (!normalized.startsWith(ROOT_PATH + '/')) return
+      const remainder = normalized.slice(ROOT_PATH.length + 1)
+      const parts = remainder.split('/').filter(Boolean)
+      const key = parts[0] || ''
+      if (!groups[key]) groups[key] = []
+      groups[key].push(it)
+    })
+    // sort the group keys; keep empty string first so root‑level items appear
+    const entries = Object.entries(groups)
+    entries.sort(([a], [b]) => {
+      if (a === '') return -1
+      if (b === '') return 1
+      return a.localeCompare(b)
+    })
+    // within each group sort folders before files and ensure the parent folder
+    // (if present) appears at the very top of its group.
+    return entries.map(([grp, arr]) => {
+      const sorted = [...arr]
+      sorted.sort((a, b) => {
+        // bump exact matching parent folder to the front
+        if (grp && isFolder(a) && String(getValue(a, 'Title')) === grp) return -1
+        if (grp && isFolder(b) && String(getValue(b, 'Title')) === grp) return 1
+        const aFolder = isFolder(a) ? 0 : 1
+        const bFolder = isFolder(b) ? 0 : 1
+        if (aFolder !== bFolder) return aFolder - bFolder
+        const aTitle = String(getValue(a, 'Title') ?? '').toLowerCase()
+        const bTitle = String(getValue(b, 'Title') ?? '').toLowerCase()
+        return aTitle.localeCompare(bTitle)
+      })
+      return [grp, sorted] as [string, any[]]
+    })
+  })()
+
+  // when searching, collect all matching items under root and sort them
+  const filteredUnderRoot = itemsUnderRoot.filter(matchesQuery)
+
+  // we will reuse this list for rendering; sort folders first
+  const searchResults = [...filteredUnderRoot]
+  searchResults.sort((a, b) => {
+    const aFolder = isFolder(a) ? 0 : 1
+    const bFolder = isFolder(b) ? 0 : 1
+    if (aFolder !== bFolder) return aFolder - bFolder
+    const aTitle = String(getValue(a, 'Title') ?? '').toLowerCase()
+    const bTitle = String(getValue(b, 'Title') ?? '').toLowerCase()
+    return aTitle.localeCompare(bTitle)
   })
 
   // ─── Render file card ─────────────────────────────────────────────────────
@@ -278,8 +337,6 @@ export default function CurrentFiles() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
-  // directChildrenOfRoot already computed above (direct children of ROOT_FOLDER, filtered by query)
-
   return (
     <div style={s.page}>
       {/* Search bar */}
@@ -295,21 +352,47 @@ export default function CurrentFiles() {
           <button onClick={() => setQuery('')} style={s.clearBtn}>×</button>
         )}
         <span style={s.totalLabel}>
-          Total: {itemsUnderRoot.length} items
+          {lowerQuery
+            ? `${filteredUnderRoot.length} of ${itemsUnderRoot.length} items`
+            : `Total: ${itemsUnderRoot.length} items`}
         </span>
       </div>
 
-      {/* Gallery */}
+      {/* Gallery – flat when no query, grouped when searching */}
       {!loading && items && (
         <div style={s.galleryWrapper}>
-
-          <div style={s.grid}>
-            {/* Show only direct children of ROOT_FOLDER */}
-            {directChildrenOfRoot.map((it: any, idx: number) => {
-              const keyStr = String(getValue(it, 'ID') ?? idx)
-              return renderCard(it, idx, keyStr)
-            })}
-          </div>
+              {lowerQuery ? (
+            <>
+              <div style={s.pathDivider}>
+                <span style={s.pathDividerLabel}>{ROOT_PATH}</span>
+              </div>
+              <div style={s.grid}>
+                {searchResults.map((it: any, idx: number) => {
+                  const keyStr = String(getValue(it, 'ID') ?? idx)
+                  return renderCard(it, idx, keyStr)
+                })}
+              </div>
+            </>
+          ) : (
+            // grouped view by first subfolder when not searching
+            <>
+              {groupedByParent.map(([grp, arr]) => (
+                <React.Fragment key={grp || '__root'}>
+                  {grp && (
+                    <div style={s.pathDivider}>
+                      <span style={s.pathDividerLabel}>{grp}</span>
+                    </div>
+                  )}
+                  <div style={s.grid}>
+                    {arr.map((it: any, idx: number) => {
+                      const keyStr = String(getValue(it, 'ID') ?? idx)
+                      return renderCard(it, idx, keyStr)
+                    })}
+                  </div>
+                </React.Fragment>
+              ))}
+            </>
+          )}
 
           {/* Infinite scroll sentinel */}
           <div ref={sentinelRef} style={{ height: 1, width: '100%' }} />
