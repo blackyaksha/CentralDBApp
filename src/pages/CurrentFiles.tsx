@@ -260,8 +260,10 @@ export default function CurrentFiles() {
     if (!lowerQuery) return true
     const tokens = lowerQuery.split(/\s+/).filter(Boolean)
     const title = String(getValue(it, 'Title') ?? '').toLowerCase()
-    const path = String(getValue(it, 'FilePath') ?? '').toLowerCase()
-    return tokens.every((t) => title.includes(t) || path.includes(t))
+    const rawPath = String(getValue(it, 'FilePath') ?? '').toLowerCase()
+    // only consider the final segment (filename) of the path for matching
+    const filename = rawPath.split('/').filter(Boolean).pop() || ''
+    return tokens.every((t) => title.includes(t) || filename.includes(t))
   }
 
   // group search results by parent folder when there is a query and at root
@@ -290,6 +292,26 @@ export default function CurrentFiles() {
 
   const filteredItems = allCurrentLevelItems.filter(matchesQuery)
 
+  // compute a display path for items, trimming the Shared Documents prefix and
+  // optionally the parent folder when performing a search. This keeps the path
+  // shown on card concise and relevant to the current context.
+  const getDisplayPath = (it: any, parentGroup?: string) => {
+    const rawPath: string = String(getValue(it, 'FilePath') ?? '')
+    if (lowerQuery) {
+      // when searching we show relative paths
+      if (currentPath.length === 0) {
+        if (parentGroup && parentGroup !== '(root)') {
+          const prefix = `Shared Documents/${parentGroup}/`
+          if (rawPath.startsWith(prefix)) return rawPath.substring(prefix.length)
+        }
+      } else {
+        const cur = `Shared Documents/${currentPath.join('/')}/`
+        if (rawPath.startsWith(cur)) return rawPath.substring(cur.length)
+      }
+    }
+    return rawPath
+  }
+
   const handleItemClick = (item: any) => {
     const isItemFolder = isFolder(item)
     const isParentCard = getValue(item, 'isParentCard')
@@ -301,9 +323,12 @@ export default function CurrentFiles() {
       const folderUrl = `https://energyregcomm.sharepoint.com/sites/CentralDatabase/Shared%20Documents/${encodeURIComponent(folderName)}`
       window.open(folderUrl, '_blank', 'noopener,noreferrer')
     } else if (isItemFolder) {
-      // Navigate into folder
-      const folderName = getValue(item, 'Title')
-      setCurrentPath([...currentPath, folderName])
+      // Determine the real path segments for the folder and update state
+      const filePath = String(getValue(item, 'FilePath') ?? '')
+      const parts = getPathParts(filePath)
+      // strip leading "Shared Documents" if present
+      if (parts[0] === 'Shared Documents') parts.shift()
+      setCurrentPath(parts)
       setQuery('') // Clear search when navigating
     } else if (rowHref) {
       // Open file URL
@@ -393,7 +418,7 @@ export default function CurrentFiles() {
                         {groupItems.map((it: any, idx: number) => {
                           const keyStr = String(getValue(it, 'ID') ?? getValue(it, 'Title') ?? idx)
                           const title = getValue(it, 'Title') ?? `Item ${idx + 1}`
-                          const path = getValue(it, 'FilePath') ?? ''
+                          const path = getDisplayPath(it, parent)
                           const isItemFolder = isFolder(it)
                           const isHov = hoveredCard === keyStr
                           return (
@@ -431,7 +456,7 @@ export default function CurrentFiles() {
               {filteredItems.map((it: any, idx: number) => {
                 const keyStr = String(getValue(it, 'ID') ?? getValue(it, 'Title') ?? idx)
                 const title = getValue(it, 'Title') ?? `Item ${idx + 1}`
-                const path = getValue(it, 'FilePath') ?? ''
+                const path = getDisplayPath(it)
                 const isItemFolder = isFolder(it)
                 const isHov = hoveredCard === keyStr
 
@@ -569,6 +594,18 @@ const s: Record<string, React.CSSProperties> = {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
     gap: 10,
+  },
+  pathDivider: {
+    padding: '10px 4px 6px',
+    marginBottom: 6,
+    borderBottom: '1px solid rgba(255,255,255,0.08)',
+  },
+  pathDividerLabel: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#a3b8d9',
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
   },
   card: {
     display: 'flex',

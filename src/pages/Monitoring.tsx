@@ -179,8 +179,9 @@ export default function Monitoring() {
     if (!lowerQuery) return true
     const tokens = lowerQuery.split(/\s+/).filter(Boolean)
     const title = String(getValue(it, 'Title') ?? '').toLowerCase()
-    const path = String(getValue(it, 'FilePath') ?? '').toLowerCase()
-    return tokens.every((t) => title.includes(t) || path.includes(t))
+    const rawPath = String(getValue(it, 'FilePath') ?? '').toLowerCase()
+    const filename = rawPath.split('/').filter(Boolean).pop() || ''
+    return tokens.every((t) => title.includes(t) || filename.includes(t))
   }
 
 
@@ -197,16 +198,18 @@ export default function Monitoring() {
     return filePath.split('/').filter(Boolean).includes(ROOT_FOLDER)
   })
 
-  // compute list of direct children of root (flat view)
-  const directChildrenOfRoot = (items ?? []).filter((it: any) => {
-    const filePath = String(getValue(it, 'FilePath') ?? '').trim()
-    const normalized = filePath.startsWith('/') ? filePath.slice(1) : filePath
-    // must start with ROOT_PATH + '/'
-    if (!normalized.startsWith(ROOT_PATH + '/')) return false
-    // remainder should have no further '/'
-    const remainder = normalized.slice(ROOT_PATH.length + 1)
-    return !remainder.includes('/')
-  }).filter(matchesQuery)
+
+  // helpers for display path & grouping
+  const getDisplayPath = (it: any, parentGroup?: string) => {
+    const rawPath: string = String(getValue(it, 'FilePath') ?? '')
+    const base = ROOT_PATH.endsWith('/') ? ROOT_PATH : ROOT_PATH + '/'
+    if (parentGroup) {
+      const prefix = base + parentGroup + '/'
+      if (rawPath.startsWith(prefix)) return rawPath.substring(prefix.length)
+    }
+    if (rawPath.startsWith(base)) return rawPath.substring(base.length)
+    return rawPath
+  }
 
   // when there is no search query we want to group everything under the
   // specified root by its first subfolder. Items that live directly in the
@@ -250,26 +253,41 @@ export default function Monitoring() {
     })
   })()
 
-  // when searching, collect all matching items under root and sort them
-  const filteredUnderRoot = itemsUnderRoot.filter(matchesQuery)
+  // when searching, group results by first child after root (like currentfiles)
+  const searchGroups: Record<string, any[]> = {}
+  if (lowerQuery) {
+    itemsUnderRoot.forEach((it: any) => {
+      if (!matchesQuery(it)) return
+      const filePath = String(getValue(it, 'FilePath') ?? '').trim()
+      const normalized = filePath.startsWith('/') ? filePath.slice(1) : filePath
+      if (!normalized.startsWith(ROOT_PATH + '/')) return
+      const remainder = normalized.slice(ROOT_PATH.length + 1)
+      const parts = remainder.split('/').filter(Boolean)
+      const parent = parts[0] || ''
+      if (!searchGroups[parent]) searchGroups[parent] = []
+      searchGroups[parent].push(it)
+    })
+    Object.keys(searchGroups).forEach((key) => {
+      searchGroups[key].sort((a, b) => {
+        const aFolder = isFolder(a) ? 0 : 1
+        const bFolder = isFolder(b) ? 0 : 1
+        if (aFolder !== bFolder) return aFolder - bFolder
+        const aTitle = String(getValue(a, 'Title') ?? '').toLowerCase()
+        const bTitle = String(getValue(b, 'Title') ?? '').toLowerCase()
+        return aTitle.localeCompare(bTitle)
+      })
+    })
+  }
 
-  // we will reuse this list for rendering; sort folders first
-  const searchResults = [...filteredUnderRoot]
-  searchResults.sort((a, b) => {
-    const aFolder = isFolder(a) ? 0 : 1
-    const bFolder = isFolder(b) ? 0 : 1
-    if (aFolder !== bFolder) return aFolder - bFolder
-    const aTitle = String(getValue(a, 'Title') ?? '').toLowerCase()
-    const bTitle = String(getValue(b, 'Title') ?? '').toLowerCase()
-    return aTitle.localeCompare(bTitle)
-  })
+  // when searching, collect all matching items under root for count
+  const filteredUnderRoot = itemsUnderRoot.filter(matchesQuery)
 
   // ─── Render file card ─────────────────────────────────────────────────────
 
-  const renderCard = (it: any, idx: number, keyStr: string) => {
+  const renderCard = (it: any, idx: number, keyStr: string, parentGroup?: string) => {
     const rowHref = extractHrefFromFileURL(getValue(it, 'FileURL'))
     const title = getValue(it, 'Title') ?? `Item ${idx + 1}`
-    const path = getValue(it, 'FilePath') ?? ''
+    const path = getDisplayPath(it, parentGroup)
     const expanded = !!expandedMap[keyStr]
     const isHov = hoveredCard === keyStr
     const isFolderItem = isFolder(it)
@@ -337,8 +355,47 @@ export default function Monitoring() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
+  // ─── Folder Banner URL ───────────────────────────────────────────────────
+  const FOLDER_BANNER_URL = 'https://energyregcomm-my.sharepoint.com/:f:/g/personal/ppis_pd_erc_ph/IgCJB1Ds93xOS6fg2ZM_5qo-ATzOt4FsLSYF7y_v7EQ0k64' // 🔁 Replace with your folder URL
+
   return (
     <div style={s.page}>
+
+      {/* Folder Banner */}
+      <a
+        href={FOLDER_BANNER_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={s.folderBanner}
+        onMouseEnter={e => (e.currentTarget.style.background = '#1e3a6e')}
+        onMouseLeave={e => (e.currentTarget.style.background = '#1a2f52')}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="28" height="28" viewBox="0 0 24 24"
+          fill="none" stroke="#60a5fa" strokeWidth="1.8"
+          strokeLinecap="round" strokeLinejoin="round"
+          style={{ flexShrink: 0 }}
+        >
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+        </svg>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={s.folderBannerTitle}>1 PD ONGOING</span>
+          <span style={s.folderBannerSub}>Click to open root folder in SharePoint</span>
+        </div>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16" height="16" viewBox="0 0 24 24"
+          fill="none" stroke="#a3b8d9" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round"
+          style={{ marginLeft: 'auto', flexShrink: 0 }}
+        >
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          <polyline points="15 3 21 3 21 9" />
+          <line x1="10" y1="14" x2="21" y2="3" />
+        </svg>
+      </a>
+
       {/* Search bar */}
       <div style={s.searchBar}>
         <input
@@ -363,15 +420,31 @@ export default function Monitoring() {
         <div style={s.galleryWrapper}>
               {lowerQuery ? (
             <>
-              <div style={s.pathDivider}>
-                <span style={s.pathDividerLabel}>{ROOT_PATH}</span>
-              </div>
-              <div style={s.grid}>
-                {searchResults.map((it: any, idx: number) => {
-                  const keyStr = String(getValue(it, 'ID') ?? idx)
-                  return renderCard(it, idx, keyStr)
+              {/* when searching show results grouped by their first subfolder */}
+              {Object.keys(searchGroups)
+                .sort((a, b) => {
+                  // keep root‑level items (empty key) first
+                  if (a === '') return -1
+                  if (b === '') return 1
+                  return a.localeCompare(b)
+                })
+                .map((parent) => {
+                  const header = parent || ROOT_PATH
+                  const groupItems = searchGroups[parent]
+                  return (
+                    <React.Fragment key={parent || '__root'}>
+                      <div style={s.pathDivider}>
+                        <span style={s.pathDividerLabel}>{header}</span>
+                      </div>
+                      <div style={s.grid}>
+                        {groupItems.map((it: any, idx: number) => {
+                          const keyStr = String(getValue(it, 'ID') ?? idx)
+                          return renderCard(it, idx, keyStr, parent)
+                        })}
+                      </div>
+                    </React.Fragment>
+                  )
                 })}
-              </div>
             </>
           ) : (
             // grouped view by first subfolder when not searching
@@ -386,7 +459,7 @@ export default function Monitoring() {
                   <div style={s.grid}>
                     {arr.map((it: any, idx: number) => {
                       const keyStr = String(getValue(it, 'ID') ?? idx)
-                      return renderCard(it, idx, keyStr)
+                      return renderCard(it, idx, keyStr, grp)
                     })}
                   </div>
                 </React.Fragment>
@@ -423,6 +496,30 @@ const s: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 200,
+  },
+  folderBanner: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: '14px 18px',
+    marginBottom: 14,
+    background: '#1a2f52',
+    border: '1px solid rgba(96,165,250,0.3)',
+    borderRadius: 12,
+    textDecoration: 'none',
+    cursor: 'pointer',
+    transition: 'background 0.15s ease',
+  },
+  folderBannerTitle: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#ffffff',
+    letterSpacing: '0.01em',
+  },
+  folderBannerSub: {
+    fontSize: 11,
+    color: '#a3b8d9',
   },
   searchBar: {
     display: 'flex',
