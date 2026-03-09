@@ -14,7 +14,6 @@ import tmpIcon from '../assets/Icons/tmp.png'
 import rarIcon from '../assets/Icons/rar.png'
 import jpgIcon from '../assets/Icons/jpg.png'
 import pngIcon from '../assets/Icons/png.png'
-import parentFolderIcon from '../assets/Icons/parent.png'
 
 const ROOT_FOLDER = '1 PD ONGOING' // 🔁 Change this to your root folder name
 
@@ -46,17 +45,6 @@ export default function Monitoring() {
     return fileType === 'folder'
   }
 
-  /**
-   * Given a file path and a folder name, returns the NEXT segment after that folder.
-   * e.g. path = "/root/1 PD ONGOING/SubA/file.pdf", folder = "1 PD ONGOING" → "SubA"
-   */
-  const getNextSegment = (path: any, folderName: string): string | null => {
-    if (!path || typeof path !== 'string') return null
-    const parts = path.split('/').filter(Boolean)
-    const idx = parts.indexOf(folderName)
-    if (idx === -1 || idx >= parts.length - 1) return null
-    return parts[idx + 1]
-  }
 
   const extractHrefFromFileURL = (val: any): string | null => {
     if (!val) return null
@@ -158,6 +146,12 @@ export default function Monitoring() {
 
   if (loading) return (
     <div style={s.page}>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+      `}</style>
       <div style={s.loadingWrap}>
         <div style={s.spinner} />
         <p style={{ color: '#a3b8d9', marginTop: 12, fontSize: 13 }}>Loading files...</p>
@@ -476,6 +470,12 @@ export default function Monitoring() {
       {loadingMore && (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '30px' }}>
           <div style={s.spinner} />
+          <style>{`
+            @keyframes spin {
+              from { transform: rotate(0deg); }
+              to   { transform: rotate(360deg); }
+            }
+          `}</style>
         </div>
       )}
     </div>

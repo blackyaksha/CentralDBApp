@@ -1,10 +1,31 @@
 import { Outlet, NavLink, useNavigate } from "react-router";
-import { Database, Home, FolderOpen, Activity, LogOut } from "lucide-react";
+import { Home, FolderOpen, Activity, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
+
+import logo from "../assets/Icons/PD Logo.png";
+
+// ── Logo ──────────────────────────────────────────────────────────────────────
+function SidebarLogo({ collapsed }: { collapsed: boolean }) {
+  return (
+    <img
+      src={logo}
+      alt="Logo"
+      title="File Manager"
+      style={{
+        width: collapsed ? 66 : 350,
+        height: collapsed ? 66 : 350,
+        objectFit: "contain",
+        flexShrink: 0,
+        transition: "width 0.25s ease, height 0.25s ease",
+      }}
+    />
+  );
+}
 
 export default function Layout() {
   const navigate = useNavigate();
   const [logoutHovered, setLogoutHovered] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = () => {
     sessionStorage.removeItem("username");
@@ -16,6 +37,8 @@ export default function Layout() {
     { path: "/app/current-files", icon: FolderOpen, label: "Current Files" },
     { path: "/app/monitoring", icon: Activity, label: "Monitoring" },
   ];
+
+  const sidebarWidth = collapsed ? 64 : 240;
 
   return (
     <div
@@ -32,52 +55,33 @@ export default function Layout() {
       {/* ── SIDEBAR ── */}
       <aside
         style={{
-          width: 240,
-          minWidth: 240,
-          maxWidth: 240,
+          width: sidebarWidth,
+          minWidth: sidebarWidth,
+          maxWidth: sidebarWidth,
           height: "100%",
           display: "flex",
           flexDirection: "column",
           background: "#1a2f52",
           borderRight: "1px solid rgba(255,255,255,0.1)",
           flexShrink: 0,
+          transition: "width 0.25s ease, min-width 0.25s ease, max-width 0.25s ease",
+          overflow: "hidden",
+          position: "relative",
         }}
       >
-        {/* Brand */}
+        {/* Brand / Logo */}
         <div
           style={{
             display: "flex",
-            flexDirection: "row",
             alignItems: "center",
-            gap: 12,
-            padding: "20px",
+            justifyContent: collapsed ? "center" : "flex-start",
+            padding: collapsed ? "16px 14px" : "16px 20px",
             borderBottom: "1px solid rgba(255,255,255,0.1)",
             flexShrink: 0,
+            transition: "padding 0.25s ease",
           }}
         >
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              minWidth: 36,
-              borderRadius: 8,
-              background: "#2d4a7c",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 4px 12px rgba(45,74,124,0.5)",
-            }}
-          >
-            <Database size={18} color="#fff" />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#fff" }}>
-              File Manager
-            </p>
-            <p style={{ margin: "2px 0 0", fontSize: 11, color: "#a3b8d9" }}>
-              Internal System
-            </p>
-          </div>
+          <SidebarLogo collapsed={collapsed} />
         </div>
 
         {/* Nav */}
@@ -89,10 +93,17 @@ export default function Layout() {
             flexDirection: "column",
             gap: 2,
             overflowY: "auto",
+            overflowX: "hidden",
           }}
         >
           {navItems.map((item) => (
-            <NavItem key={item.path} path={item.path} icon={item.icon} label={item.label} />
+            <NavItem
+              key={item.path}
+              path={item.path}
+              icon={item.icon}
+              label={item.label}
+              collapsed={collapsed}
+            />
           ))}
         </nav>
 
@@ -102,13 +113,15 @@ export default function Layout() {
             onClick={handleLogout}
             onMouseEnter={() => setLogoutHovered(true)}
             onMouseLeave={() => setLogoutHovered(false)}
+            title={collapsed ? "Logout" : undefined}
             style={{
               width: "100%",
               display: "flex",
               flexDirection: "row",
               alignItems: "center",
+              justifyContent: collapsed ? "center" : "flex-start",
               gap: 10,
-              padding: "10px 14px",
+              padding: collapsed ? "10px" : "10px 14px",
               borderRadius: 8,
               border: "none",
               cursor: "pointer",
@@ -120,10 +133,39 @@ export default function Layout() {
               fontFamily: "inherit",
             }}
           >
-            <LogOut size={16} />
-            <span>Logout</span>
+            <LogOut size={16} style={{ flexShrink: 0 }} />
+            {!collapsed && <span>Logout</span>}
           </button>
         </div>
+
+        {/* Collapse Toggle Button */}
+        <button
+          onClick={() => setCollapsed((prev) => !prev)}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          style={{
+            position: "absolute",
+            top: "50%",
+            right: 3,
+            transform: "translateY(-50%)",
+            width: 24,
+            height: 40,
+            borderRadius: "50%",
+            background: "#2d4a7c",
+            border: "1px solid rgba(255,255,255,0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            color: "#fff",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+            zIndex: 10,
+            transition: "background 0.15s ease",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "#3d5f9c")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "#2d4a7c")}
+        >
+          {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+        </button>
       </aside>
 
       {/* ── MAIN CONTENT ── */}
@@ -143,7 +185,17 @@ export default function Layout() {
   );
 }
 
-function NavItem({ path, icon: Icon, label }: { path: string; icon: any; label: string }) {
+function NavItem({
+  path,
+  icon: Icon,
+  label,
+  collapsed,
+}: {
+  path: string;
+  icon: any;
+  label: string;
+  collapsed: boolean;
+}) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -151,32 +203,40 @@ function NavItem({ path, icon: Icon, label }: { path: string; icon: any; label: 
       to={path}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      title={collapsed ? label : undefined}
       style={({ isActive }) => ({
         display: "flex",
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: collapsed ? "center" : "flex-start",
         gap: 10,
-        padding: "10px 14px",
+        padding: collapsed ? "10px" : "10px 14px",
         borderRadius: 8,
         textDecoration: "none",
         fontSize: 13,
         fontWeight: 500,
         transition: "all 0.15s ease",
-        background: isActive
-          ? "#2d4a7c"
-          : hovered
-          ? "#253853"
-          : "transparent",
+        background: isActive ? "#2d4a7c" : hovered ? "#253853" : "transparent",
         color: isActive ? "#fff" : hovered ? "#fff" : "#a3b8d9",
         border: "1px solid transparent",
+        overflow: "hidden",
+        whiteSpace: "nowrap",
       })}
     >
       {({ isActive }) => (
         <>
           <Icon size={16} style={{ flexShrink: 0 }} />
-          <span style={{ flex: 1 }}>{label}</span>
-          {isActive && (
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#60a5fa", flexShrink: 0 }} />
+          {!collapsed && <span style={{ flex: 1 }}>{label}</span>}
+          {!collapsed && isActive && (
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: "#60a5fa",
+                flexShrink: 0,
+              }}
+            />
           )}
         </>
       )}

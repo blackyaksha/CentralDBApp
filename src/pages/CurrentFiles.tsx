@@ -239,6 +239,12 @@ export default function CurrentFiles() {
 
   if (loading) return (
     <div style={s.page}>
+      <style>{`
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+      }
+    `}</style>
       <div style={s.loadingWrap}>
         <div style={s.spinner} />
         <p style={{ color: '#a3b8d9', marginTop: 12, fontSize: 13 }}>Loading files...</p>
@@ -419,7 +425,6 @@ export default function CurrentFiles() {
                           const keyStr = String(getValue(it, 'ID') ?? getValue(it, 'Title') ?? idx)
                           const title = getValue(it, 'Title') ?? `Item ${idx + 1}`
                           const path = getDisplayPath(it, parent)
-                          const isItemFolder = isFolder(it)
                           const isHov = hoveredCard === keyStr
                           return (
                             <article
@@ -457,7 +462,6 @@ export default function CurrentFiles() {
                 const keyStr = String(getValue(it, 'ID') ?? getValue(it, 'Title') ?? idx)
                 const title = getValue(it, 'Title') ?? `Item ${idx + 1}`
                 const path = getDisplayPath(it)
-                const isItemFolder = isFolder(it)
                 const isHov = hoveredCard === keyStr
 
                 return (
@@ -497,6 +501,12 @@ export default function CurrentFiles() {
       {loadingMore && (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '30px' }}>
           <div style={s.spinner} />
+          <style>{`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+          }
+        `}</style>
         </div>
       )}
     </div>
