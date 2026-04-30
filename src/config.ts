@@ -1,16 +1,13 @@
-export const FLOW_URL = import.meta.env.VITE_FLOW_URL
-export const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD
-export const ADMIN_USERNAME = import.meta.env.VITE_ADMIN_USERNAME
-export const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD
+export const FLOW_ENDPOINT = import.meta.env.VITE_FLOW_URL ?? ''
+export const CLIENT_PASSWORD = import.meta.env.VITE_APP_PASSWORD ?? ''
+export const ADMIN_USER = import.meta.env.VITE_ADMIN_USERNAME ?? ''
+export const ADMIN_PASS = import.meta.env.VITE_ADMIN_PASSWORD ?? ''
 
-function requireEnv(key: string, value: string | undefined): string {
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`)
-  }
-  return value
+export function getMissingEnvWarning(): string | null {
+  const missing: string[] = []
+  if (!FLOW_ENDPOINT) missing.push('VITE_FLOW_URL')
+  if (!CLIENT_PASSWORD) missing.push('VITE_APP_PASSWORD')
+  if (!ADMIN_USER) missing.push('VITE_ADMIN_USERNAME')
+  if (!ADMIN_PASS) missing.push('VITE_ADMIN_PASSWORD')
+  return missing.length > 0 ? `Missing env variables: ${missing.join(', ')}` : null
 }
-
-export const FLOW_ENDPOINT = requireEnv('VITE_FLOW_URL', FLOW_URL)
-export const CLIENT_PASSWORD = requireEnv('VITE_APP_PASSWORD', APP_PASSWORD)
-export const ADMIN_USER = requireEnv('VITE_ADMIN_USERNAME', ADMIN_USERNAME)
-export const ADMIN_PASS = requireEnv('VITE_ADMIN_PASSWORD', ADMIN_PASSWORD)
