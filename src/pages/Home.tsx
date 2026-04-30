@@ -667,7 +667,7 @@ export default function Home() {
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("username");
+    const stored = sessionStorage.getItem("displayName");
     if (stored) setUsername(stored);
   }, []);
 

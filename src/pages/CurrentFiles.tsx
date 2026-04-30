@@ -15,6 +15,7 @@ import rarIcon from '../assets/Icons/rar.png'
 import jpgIcon from '../assets/Icons/jpg.png'
 import pngIcon from '../assets/Icons/png.png'
 import folderIcon from '../assets/Icons/folder.png'
+import { FLOW_ENDPOINT } from '../config'
 
 export default function CurrentFiles() {
   const [items, setItems] = useState<DatabaseRead[] | null>(null)
@@ -26,6 +27,7 @@ export default function CurrentFiles() {
   const [hasMore, setHasMore] = useState(true)
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
   const [currentPath, setCurrentPath] = useState<string[]>([])
+  const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({})
   const PAGE_SIZE = 5000
 
   const fetchingRef = useRef(false)
@@ -42,7 +44,7 @@ export default function CurrentFiles() {
       if (nextLink) body.nextLink = nextLink
 
       const response = await fetch(
-        'https://e0ffbd29750ce27abc181dd6358937.97.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/13ad1bf5cd9d40faae5866a10b8e5d5e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=r0hMO5PRRh_wKy5Y1DV5tejG2smmJjiWhJMvjQrGrK4',
+        FLOW_ENDPOINT,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -441,10 +443,21 @@ export default function CurrentFiles() {
                             >
                               <img src={getIconSrc(it)} alt="" style={s.fileIcon} />
                               <div style={s.cardBody}>
-                                <h3 style={s.cardTitle} title={String(title)}>
-                                  {String(title)}
-                                </h3>
-                                <p style={s.cardPath} title={String(path)}>
+                                <div style={s.cardHeader}>
+                                  <h3 style={{ ...s.cardTitle, whiteSpace: expandedMap[keyStr] ? 'normal' : 'nowrap' }} title={String(title)}>
+                                    {String(title)}
+                                  </h3>
+                                  <button
+                                    style={s.expandBtn}
+                                    onClick={(e) => { e.stopPropagation(); setExpandedMap(m => ({ ...m, [keyStr]: !m[keyStr] })) }}
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                      style={{ transform: expandedMap[keyStr] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                                      <path d="M6 9l6 6 6-6" stroke="#a3b8d9" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                <p style={{ ...s.cardPath, whiteSpace: expandedMap[keyStr] ? 'normal' : 'nowrap' }} title={String(path)}>
                                   {String(path)}
                                 </p>
                               </div>
@@ -479,10 +492,21 @@ export default function CurrentFiles() {
                   >
                     <img src={getIconSrc(it)} alt="" style={s.fileIcon} />
                     <div style={s.cardBody}>
-                      <h3 style={s.cardTitle} title={String(title)}>
-                        {String(title)}
-                      </h3>
-                      <p style={s.cardPath} title={String(path)}>
+                      <div style={s.cardHeader}>
+                        <h3 style={{ ...s.cardTitle, whiteSpace: expandedMap[keyStr] ? 'normal' : 'nowrap' }} title={String(title)}>
+                          {String(title)}
+                        </h3>
+                        <button
+                          style={s.expandBtn}
+                          onClick={(e) => { e.stopPropagation(); setExpandedMap(m => ({ ...m, [keyStr]: !m[keyStr] })) }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            style={{ transform: expandedMap[keyStr] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                            <path d="M6 9l6 6 6-6" stroke="#a3b8d9" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </div>
+                      <p style={{ ...s.cardPath, whiteSpace: expandedMap[keyStr] ? 'normal' : 'nowrap' }} title={String(path)}>
                         {String(path)}
                       </p>
                     </div>
@@ -649,6 +673,7 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 500,
     color: '#fff',
+    flex: 1,                  // ← add this
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -669,4 +694,21 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: '50%',
     animation: 'spin 0.8s linear infinite',
   },
+
+  cardHeader: {
+  display: 'flex',
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  gap: 4,
+},
+expandBtn: {
+  background: 'transparent',
+  border: 'none',
+  cursor: 'pointer',
+  padding: 2,
+  display: 'flex',
+  alignItems: 'center',
+  flexShrink: 0,
+},
+
 }

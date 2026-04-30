@@ -1,14 +1,41 @@
 import express from 'express';
 import fetch from 'node-fetch';
 import cors from 'cors';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+function loadDotEnv() {
+  try {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const envPath = join(__dirname, '..', '.env');
+    const contents = readFileSync(envPath, 'utf8');
+
+    for (const line of contents.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const index = trimmed.indexOf('=');
+      if (index === -1) continue;
+
+      const key = trimmed.slice(0, index).trim();
+      const value = trimmed.slice(index + 1).trim();
+      if (key && process.env[key] === undefined) {
+        process.env[key] = value;
+      }
+    }
+  } catch (error) {
+    // Ignore missing .env file; env vars can still be provided by the shell.
+  }
+}
+
+loadDotEnv();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-app.use(cors());
-app.use(express.json());
-
-const FLOW_URL = 'https://e0ffbd29750ce27abc181dd6358937.97.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/13ad1bf5cd9d40faae5866a10b8e5d5e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=r0hMO5PRRh_wKy5Y1DV5tejG2smmJjiWhJMvjQrGrK4';
+const FLOW_URL = process.env.FLOW_URL || process.env.VITE_FLOW_URL;
+if (!FLOW_URL) {
+  throw new Error('Missing required FLOW_URL or VITE_FLOW_URL environment variable.');
+}
 
 app.post('/fetch-files', async (req, res) => {
   try {
