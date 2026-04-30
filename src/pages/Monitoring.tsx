@@ -14,9 +14,9 @@ import tmpIcon from '../assets/Icons/tmp.png'
 import rarIcon from '../assets/Icons/rar.png'
 import jpgIcon from '../assets/Icons/jpg.png'
 import pngIcon from '../assets/Icons/png.png'
-import { FLOW_ENDPOINT } from '../config'
+import { FLOW_ENDPOINT, SP_DOMAIN, MONITORING_ROOT_FOLDER, MONITORING_ROOT_PATH } from '../config'
 
-const ROOT_FOLDER = '1 PD ONGOING' // 🔁 Change this to your root folder name
+const ROOT_FOLDER = MONITORING_ROOT_FOLDER
 
 export default function Monitoring() {
   const [items, setItems] = useState<DatabaseRead[] | null>(null)
@@ -185,7 +185,7 @@ export default function Monitoring() {
   // We want to display everything under ROOT_FOLDER, but grouped by the FIRST subfolder
   // after the root. Items that sit directly in the root (no subfolder) will be grouped
   // under an empty string key.
-  const ROOT_PATH = 'Shared Documents/1 PD ONGOING'
+  const ROOT_PATH = MONITORING_ROOT_PATH
 
   // All items under ROOT_FOLDER (for total count)
   const itemsUnderRoot = (items ?? []).filter((it: any) => {

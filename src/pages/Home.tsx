@@ -12,10 +12,11 @@ import {
   Link,
   Trash2,
 } from "lucide-react";
+import { PINNED_DATABASE_APP_URL, PINNED_SPMS_URL } from "../config";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type FileType = "doc" | "sheet" | "image" | "code" | "pdf" | "presentation" | "generic";
-type Placement = "pinned" | "folder" | "file";
+type Placement = "folder" | "file";
 
 type PinnedFile = {
   id: number;
@@ -45,7 +46,7 @@ const initialPinned: PinnedFile[] = [
     type: "DOCX",
     icon: FileText,
     accent: { text: "#93c5fd", bg: "rgba(37,99,235,0.12)", border: "rgba(59,130,246,0.2)", dot: "#3b82f6" },
-    url: "https://energyregcomm-my.sharepoint.com/:w:/g/personal/ppis_pd_erc_ph/IQBtb1x9no4NS67kd5wvgo-9ATxXBwOvHeN2JaapAwXwA5c",
+    url: PINNED_DATABASE_APP_URL,
   },
   {
     id: 2,
@@ -53,22 +54,12 @@ const initialPinned: PinnedFile[] = [
     type: "XLSX",
     icon: FileSpreadsheet,
     accent: { text: "#86efac", bg: "rgba(22,163,74,0.12)", border: "rgba(34,197,94,0.2)", dot: "#22c55e" },
-    url: "https://energyregcomm-my.sharepoint.com/:x:/g/personal/ppis_pd_erc_ph/IQBH-YvvApWYTbCg27R1e7eFAbzYN7zj3FbNWN5mN-Xxyh4?e=CtbQCe",
+    url: PINNED_SPMS_URL,
   },
 ];
 
-const initialExplorer: ExplorerItem[] = [
-  {
-    id: "folder-1",
-    name: "Folder Name",
-    type: "folder",
-    itemCount: 0,
-    children: [],
-  },
-  { id: "file-1", name: "Document 1.docx", type: "file", fileType: "doc", displayLabel: "DOCX", url: "#" },
-  { id: "file-2", name: "Spreadsheet 1.xlsx", type: "file", fileType: "sheet", displayLabel: "XLSX", url: "#" },
-  { id: "file-3", name: "File 3", type: "file", fileType: "generic", displayLabel: "FILE", url: "#" },
-];
+// ── Empty explorer (no template items) ───────────────────────────────────────
+const initialExplorer: ExplorerItem[] = [];
 
 // ── Accent helpers ────────────────────────────────────────────────────────────
 type Accent = { text: string; bg: string; border: string; dot: string };
@@ -83,9 +74,7 @@ function getFileAccent(fileType?: string): Accent {
   return                                  { text: "#94a3b8", bg: "rgba(148,163,184,0.08)", border: "rgba(148,163,184,0.15)", dot: "#94a3b8" };
 }
 
-// Known label → color map for "Other" custom types
 const LABEL_ACCENT_MAP: Record<string, Accent> = {
-  // Pre-defined dropdown types (by label)
   DOCX: { text: "#93c5fd", bg: "rgba(37,99,235,0.12)",   border: "rgba(59,130,246,0.2)",  dot: "#3b82f6" },
   XLSX: { text: "#86efac", bg: "rgba(22,163,74,0.12)",   border: "rgba(34,197,94,0.2)",   dot: "#22c55e" },
   PNG:  { text: "#fbbf24", bg: "rgba(234,179,8,0.12)",   border: "rgba(234,179,8,0.2)",   dot: "#fbbf24" },
@@ -106,7 +95,6 @@ const LABEL_ACCENT_MAP: Record<string, Accent> = {
   XML:  { text: "#6ee7b7", bg: "rgba(5,150,105,0.12)",   border: "rgba(16,185,129,0.25)",  dot: "#10b981" },
 };
 
-// Palette for truly unknown types — assigned by hashing the label string
 const FALLBACK_PALETTE: Accent[] = [
   { text: "#93c5fd", bg: "rgba(37,99,235,0.12)",   border: "rgba(59,130,246,0.2)",  dot: "#3b82f6" },
   { text: "#86efac", bg: "rgba(22,163,74,0.12)",   border: "rgba(34,197,94,0.2)",   dot: "#22c55e" },
@@ -162,6 +150,7 @@ type ModalForm = {
   customFileType: string;
   link: string;
   placement: Placement;
+  pinned: boolean;
 };
 
 function AddItemModal({
@@ -177,6 +166,7 @@ function AddItemModal({
     customFileType: "",
     link: "",
     placement: "file",
+    pinned: false,
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ModalForm, string>>>({});
 
@@ -244,7 +234,6 @@ function AddItemModal({
   };
 
   return (
-    // Backdrop
     <div
       onClick={onClose}
       style={{
@@ -254,7 +243,6 @@ function AddItemModal({
         backdropFilter: "blur(4px)",
       }}
     >
-      {/* Modal box */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -302,7 +290,7 @@ function AddItemModal({
         {/* Body */}
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
 
-          {/* Placement dropdown — first so user picks context */}
+          {/* Placement dropdown */}
           <div>
             <label style={labelStyle}>Add to</label>
             <select
@@ -310,7 +298,6 @@ function AddItemModal({
               onChange={(e) => set("placement", e.target.value)}
               style={selectStyle}
             >
-              <option value="pinned">📌 Pinned</option>
               <option value="folder">📁 Folder</option>
               <option value="file">📄 File</option>
             </select>
@@ -341,19 +328,19 @@ function AddItemModal({
                   onChange={(e) => set("fileType", e.target.value)}
                   style={selectStyle}
                 >
-                <option value="">— Select file type —</option>
-                <option value="pdf">PDF — PDF Document</option>
-                <option value="doc">DOCX — Word Document</option>
-                <option value="sheet">XLSX — Spreadsheet</option>
-                <option value="image">PNG / JPG — Image</option>
-                <option value="presentation">PPT / PPTX — Presentation</option>
-                <option value="code">MD — Markdown / Code</option>
-                <option value="generic">Other</option>
+                  <option value="">— Select file type —</option>
+                  <option value="pdf">PDF — PDF Document</option>
+                  <option value="doc">DOCX — Word Document</option>
+                  <option value="sheet">XLSX — Spreadsheet</option>
+                  <option value="image">PNG / JPG — Image</option>
+                  <option value="presentation">PPT / PPTX — Presentation</option>
+                  <option value="code">MD — Markdown / Code</option>
+                  <option value="generic">Other</option>
                 </select>
                 {errors.fileType && <p style={errorStyle}>{errors.fileType}</p>}
               </div>
 
-              {/* Custom file type input — shown only when Other is selected */}
+              {/* Custom file type input */}
               {form.fileType === "generic" && (
                 <div>
                   <label style={labelStyle}>Specify Document Type</label>
@@ -369,6 +356,23 @@ function AddItemModal({
                   {errors.customFileType && <p style={errorStyle}>{errors.customFileType}</p>}
                 </div>
               )}
+
+              {/* Pin checkbox — only shown for files, not folders */}
+              <label
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  fontSize: 13, color: "rgba(255,255,255,0.6)",
+                  cursor: "pointer", userSelect: "none",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={form.pinned}
+                  onChange={(e) => setForm((f) => ({ ...f, pinned: e.target.checked }))}
+                  style={{ accentColor: "#818cf8", width: 15, height: 15, cursor: "pointer" }}
+                />
+                📌 Pin this item
+              </label>
             </div>
           )}
 
@@ -441,7 +445,6 @@ function FileExplorer({ items, onDelete }: { items: ExplorerItem[]; onDelete: (i
   ]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // Keep root in sync when items prop changes
   useEffect(() => {
     setStack((s) => {
       const next = [...s];
@@ -512,7 +515,6 @@ function FileExplorer({ items, onDelete }: { items: ExplorerItem[]; onDelete: (i
                     boxShadow: isHovered ? "0 8px 24px rgba(0,0,0,0.25)" : "none",
                   }}
                 >
-                  {/* Delete button */}
                   {isHovered && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onDelete(folder.id); }}
@@ -639,7 +641,6 @@ function FileExplorer({ items, onDelete }: { items: ExplorerItem[]; onDelete: (i
 export default function Home() {
   const [username, setUsername] = useState("User");
 
-  // ── Persistent state via localStorage ──
   const [pinnedFiles, setPinnedFiles] = useState<PinnedFile[]>(() => {
     try {
       const saved = localStorage.getItem("home_pinned");
@@ -656,12 +657,21 @@ export default function Home() {
   });
 
   const [explorerItems, setExplorerItems] = useState<ExplorerItem[]>(() => {
-    try {
-      const saved = localStorage.getItem("home_explorer");
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return initialExplorer;
-  });
+  try {
+    const saved = localStorage.getItem("home_explorer");
+    if (saved) {
+      const parsed: ExplorerItem[] = JSON.parse(saved);
+      const templateIds = new Set(["folder-1", "file-1", "file-2", "file-3"]);
+      const hasTemplates = parsed.some((item) => templateIds.has(item.id));
+      if (hasTemplates) {
+        localStorage.removeItem("home_explorer");
+        return [];
+      }
+      return parsed;
+    }
+  } catch {}
+  return initialExplorer;
+});
 
   const [hovered, setHovered] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -671,7 +681,6 @@ export default function Home() {
     if (stored) setUsername(stored);
   }, []);
 
-  // Save pinned files to localStorage (store iconType instead of component)
   useEffect(() => {
     try {
       const serializable = pinnedFiles.map(({ icon, ...rest }) => ({
@@ -684,7 +693,6 @@ export default function Home() {
     } catch {}
   }, [pinnedFiles]);
 
-  // Save explorer items to localStorage
   useEffect(() => {
     try {
       localStorage.setItem("home_explorer", JSON.stringify(explorerItems));
@@ -694,33 +702,42 @@ export default function Home() {
   const handleAdd = (form: ModalForm) => {
     const id = Date.now().toString();
 
-    if (form.placement === "pinned") {
-      const accent = getFileAccent(form.fileType || undefined);
-      const IconComp = getIconComponent(form.fileType || undefined);
-      const newPinned: PinnedFile = {
-        id: Date.now(),
-        title: form.title,
-        type: form.fileType === "generic" && form.customFileType ? form.customFileType : getFileLabel(form.fileType || undefined),
-        icon: IconComp,
-        accent: { ...accent },
-        url: form.link,
-      };
-      setPinnedFiles((p) => [...p, newPinned]);
-    } else if (form.placement === "folder") {
+    if (form.placement === "folder") {
+      // Add folder to explorer
       const newFolder: ExplorerItem = {
         id, name: form.title, type: "folder", itemCount: 0, children: [], url: form.link,
       };
       setExplorerItems((items) => [...items, newFolder]);
     } else {
+      // Always add to file explorer
       const newFile: ExplorerItem = {
         id,
         name: form.title,
         type: "file",
         fileType: form.fileType as FileType || "generic",
-        displayLabel: form.fileType === "generic" && form.customFileType ? form.customFileType : getFileLabel(form.fileType || undefined),
+        displayLabel: form.fileType === "generic" && form.customFileType
+          ? form.customFileType
+          : getFileLabel(form.fileType || undefined),
         url: form.link,
       };
       setExplorerItems((items) => [...items, newFile]);
+
+      // Also pin if checkbox was checked
+      if (form.pinned) {
+        const accent = getFileAccent(form.fileType || undefined);
+        const IconComp = getIconComponent(form.fileType || undefined);
+        const newPinned: PinnedFile = {
+          id: Date.now(),
+          title: form.title,
+          type: form.fileType === "generic" && form.customFileType
+            ? form.customFileType
+            : getFileLabel(form.fileType || undefined),
+          icon: IconComp,
+          accent: { ...accent },
+          url: form.link,
+        };
+        setPinnedFiles((p) => [...p, newPinned]);
+      }
     }
 
     setShowModal(false);
@@ -729,7 +746,6 @@ export default function Home() {
   return (
     <div style={styles.page}>
 
-      {/* Modal */}
       {showModal && <AddItemModal onClose={() => setShowModal(false)} onAdd={handleAdd} />}
 
       {/* Greeting */}
