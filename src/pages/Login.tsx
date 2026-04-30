@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Database } from "lucide-react";
-import { ADMIN_PASS, ADMIN_USER, CLIENT_PASSWORD } from "../config";
+import { ADMIN_PASS, ADMIN_USER, CLIENT_PASSWORD, CLIENT_USERS } from "../config";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -12,13 +12,7 @@ const PASSWORD = CLIENT_PASSWORD
 
 const ADMIN = { username: ADMIN_USER, password: ADMIN_PASS }
 
-const [users, setUsers] =  useState<Record<string, string>>({
-  "ECC": "Elvie",
-  "VAGR": "Vi-Ann",
-  "DJLS": "Daniel",
-  "MDE": "Mon",
-  "METT": "Emman",
-})
+const [users, setUsers] = useState<Record<string, string>>(CLIENT_USERS)
 
 const [showAdminModal, setShowAdminModal] = useState(false)
 const [adminCreds, setAdminCreds] = useState({username: "", password: ""}) 
