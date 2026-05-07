@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate } from "react-router";
 import { Home, FolderOpen, Activity, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
-import logo from "../assets/Icons/PD Logo.png";
+import logo from "../assets/Icons/PD_Logo.png";
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
 function SidebarLogo({ collapsed }: { collapsed: boolean }) {
@@ -12,11 +12,12 @@ function SidebarLogo({ collapsed }: { collapsed: boolean }) {
       alt="Logo"
       title="File Manager"
       style={{
-        width: collapsed ? 66 : 350,
-        height: collapsed ? 66 : 350,
+        width: collapsed ? 40 : "100%",
+        maxWidth: collapsed ? 40 : 180,
+        height: "auto",
         objectFit: "contain",
         flexShrink: 0,
-        transition: "width 0.25s ease, height 0.25s ease",
+        transition: "width 0.25s ease, max-width 0.25s ease",
       }}
     />
   );

@@ -457,10 +457,6 @@ function FileExplorer({ items, onDelete }: { items: ExplorerItem[]; onDelete: (i
   const folders = current.items.filter((i) => i.type === "folder");
   const files   = current.items.filter((i) => i.type === "file");
 
-  const openFolder = (item: ExplorerItem) => {
-    if (item.children) setStack((s) => [...s, { label: item.name, items: item.children! }]);
-  };
-
   const goBack = () => setStack((s) => s.slice(0, -1));
 
   return (
@@ -532,9 +528,11 @@ function FileExplorer({ items, onDelete }: { items: ExplorerItem[]; onDelete: (i
                       <Trash2 size={12} color="#f87171" />
                     </button>
                   )}
-                  <div
-                    onClick={() => openFolder(folder)}
-                    style={{ display: "flex", flexDirection: "column", gap: 12, cursor: "pointer" }}
+                  <a
+                    href={folder.url || "#"}
+                    target={folder.url && folder.url !== "#" ? "_blank" : undefined}
+                    rel="noopener noreferrer"
+                    style={{ display: "flex", flexDirection: "column", gap: 12, cursor: "pointer", textDecoration: "none" }}
                   >
                     <div style={{
                       width: 44, height: 44, borderRadius: 10,
@@ -549,7 +547,7 @@ function FileExplorer({ items, onDelete }: { items: ExplorerItem[]; onDelete: (i
                         {folder.name}
                       </span>
                     </div>
-                  </div>
+                  </a>
                 </div>
               );
             })}

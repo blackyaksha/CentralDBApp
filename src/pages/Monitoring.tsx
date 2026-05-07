@@ -14,7 +14,7 @@ import tmpIcon from '../assets/Icons/tmp.png'
 import rarIcon from '../assets/Icons/rar.png'
 import jpgIcon from '../assets/Icons/jpg.png'
 import pngIcon from '../assets/Icons/png.png'
-import { FLOW_ENDPOINT, SP_DOMAIN, MONITORING_ROOT_FOLDER, MONITORING_ROOT_PATH } from '../config'
+import { FLOW_ENDPOINT, MONITORING_ROOT_FOLDER, MONITORING_ROOT_PATH } from '../config'
 
 const ROOT_FOLDER = MONITORING_ROOT_FOLDER
 
