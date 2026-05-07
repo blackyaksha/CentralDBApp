@@ -2,13 +2,14 @@ import { Outlet, NavLink, useNavigate } from "react-router";
 import { Home, FolderOpen, Activity, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
-import logo from "../assets/Icons/PD_Logo.png";
+//import logo from "../assets/Icons/PD_Logo.png";
 
+import { PD_LOGO } from "../assets/logoBase64";
 // ── Logo ──────────────────────────────────────────────────────────────────────
 function SidebarLogo({ collapsed }: { collapsed: boolean }) {
   return (
     <img
-      src={logo}
+      src={PD_LOGO}
       alt="Logo"
       title="File Manager"
       style={{

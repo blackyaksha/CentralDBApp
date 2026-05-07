@@ -1,19 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react'
 import type { DatabaseRead } from '../generated/models/DatabaseModel'
-import pdfIcon from '../assets/Icons/pdf.png'
-import docxIcon from '../assets/Icons/docs.png'
-import xlsxIcon from '../assets/Icons/sheets.png'
-import pptxIcon from '../assets/Icons/pptx.png'
-import folderIcon from '../assets/Icons/folder.png'
-import zipIcon from '../assets/Icons/zip-folder.png'
-import movIcon from '../assets/Icons/mov.png'
-import mp3Icon from '../assets/Icons/mp3.png'
-import mp4Icon from '../assets/Icons/mp4.png'
-import m4vIcon from '../assets/Icons/m4v.png'
-import tmpIcon from '../assets/Icons/tmp.png'
-import rarIcon from '../assets/Icons/rar.png'
-import jpgIcon from '../assets/Icons/jpg.png'
-import pngIcon from '../assets/Icons/png.png'
+import {
+  pdfIcon, docxIcon, xlsxIcon, pptxIcon,
+  zipIcon, movIcon, mp3Icon, mp4Icon, m4vIcon,
+  tmpIcon, rarIcon, jpgIcon, pngIcon, folderIcon
+} from '../assets/iconsBase64';
 import { FLOW_ENDPOINT, MONITORING_ROOT_FOLDER, MONITORING_ROOT_PATH } from '../config'
 
 const ROOT_FOLDER = MONITORING_ROOT_FOLDER
