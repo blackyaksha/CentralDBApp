@@ -4,6 +4,7 @@ import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import CurrentFiles from "./pages/CurrentFiles";
 import Monitoring from "./pages/Monitoring";
+import ActivityLogPage from "./pages/ActivityLogPage";
 
 export const router = createHashRouter([
   {
@@ -25,6 +26,10 @@ export const router = createHashRouter([
       {
         path: "monitoring",
         element: <Monitoring />,
+      },
+      {
+        path: "activity-log",
+        element: <ActivityLogPage />,
       },
     ],
   },

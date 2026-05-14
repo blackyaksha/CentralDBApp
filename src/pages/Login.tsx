@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Database } from "lucide-react";
 import { ADMIN_PASS, ADMIN_USER, CLIENT_PASSWORD, CLIENT_USERS } from "../config";
+import { logActivity } from "../services/activityLogger";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -58,11 +59,13 @@ const handleLogin = (e: React.FormEvent) => {
   if (displayName && password === PASSWORD) {
     sessionStorage.setItem("username", username)
     sessionStorage.setItem("displayName", displayName)
+    logActivity('session', 'Logged in', displayName)
     navigate("/app/home")
   } else {
     alert("Invalid username or password")
   }
 }
+
   return (
     <div style={styles.page}>
       <div style={styles.container}>

@@ -12,6 +12,7 @@ import {
   Link,
   Trash2,
 } from "lucide-react";
+import { logActivity } from "../services/activityLogger";
 import { PINNED_DATABASE_APP_URL, PINNED_SPMS_URL } from "../config";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -570,6 +571,7 @@ function FileExplorer({ items, onDelete }: { items: ExplorerItem[]; onDelete: (i
                   key={file.id}
                   onMouseEnter={() => setHoveredId(file.id)}
                   onMouseLeave={() => setHoveredId(null)}
+                  onClick={() => logActivity('file', 'Opened', file.name)}
                   style={{
                     display: "flex", alignItems: "center", gap: 14, padding: "14px 16px",
                     borderRadius: 12, transition: "all 0.18s ease", position: "relative",
@@ -577,6 +579,7 @@ function FileExplorer({ items, onDelete }: { items: ExplorerItem[]; onDelete: (i
                     background: isHovered ? accent.bg : "rgba(255,255,255,0.03)",
                     transform: isHovered ? "translateY(-2px)" : "none",
                     boxShadow: isHovered ? "0 8px 24px rgba(0,0,0,0.25)" : "none",
+                    cursor: "pointer",
                   }}
                 >
                   <a
@@ -706,6 +709,7 @@ export default function Home() {
         id, name: form.title, type: "folder", itemCount: 0, children: [], url: form.link,
       };
       setExplorerItems((items) => [...items, newFolder]);
+      logActivity('folder', 'Added', form.title);
     } else {
       // Always add to file explorer
       const newFile: ExplorerItem = {
@@ -719,6 +723,7 @@ export default function Home() {
         url: form.link,
       };
       setExplorerItems((items) => [...items, newFile]);
+      logActivity('file', 'Added', form.title);
 
       // Also pin if checkbox was checked
       if (form.pinned) {
@@ -765,6 +770,7 @@ export default function Home() {
               key={file.id}
               onMouseEnter={() => setHovered(file.id)}
               onMouseLeave={() => setHovered(null)}
+              onClick={() => logActivity('file', 'Opened', file.title)}
               style={{
                 ...styles.card,
                 position: "relative",
@@ -772,6 +778,7 @@ export default function Home() {
                 borderColor: isHovered ? file.accent.border : "rgba(255,255,255,0.07)",
                 transform: isHovered ? "translateY(-2px)" : "none",
                 boxShadow: isHovered ? "0 8px 24px rgba(0,0,0,0.25)" : "none",
+                cursor: "pointer",
               }}
             >
               <a

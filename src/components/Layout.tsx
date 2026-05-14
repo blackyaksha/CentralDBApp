@@ -1,10 +1,12 @@
 import { Outlet, NavLink, useNavigate } from "react-router";
-import { Home, FolderOpen, Activity, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { Home, FolderOpen, Activity, LogOut, ChevronLeft, ChevronRight, History } from "lucide-react";
 import { useState } from "react";
 
 //import logo from "../assets/Icons/PD_Logo.png";
 
 import { PD_LOGO } from "../assets/logoBase64";
+import { logActivity } from "../services/activityLogger";
+
 // ── Logo ──────────────────────────────────────────────────────────────────────
 function SidebarLogo({ collapsed }: { collapsed: boolean }) {
   return (
@@ -30,7 +32,10 @@ export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = () => {
+    const displayName = sessionStorage.getItem("displayName") || "User";
+    logActivity('session', 'Logged out', displayName);
     sessionStorage.removeItem("username");
+    sessionStorage.removeItem("displayName");
     navigate("/");
   };
 
@@ -108,6 +113,50 @@ export default function Layout() {
             />
           ))}
         </nav>
+
+        {/* Activity Log Button */}
+        <div style={{ padding: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
+          <NavLink
+            to="/app/activity-log"
+            title={collapsed ? "Activity Log" : undefined}
+            style={({ isActive }) => ({
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: collapsed ? "center" : "flex-start",
+              gap: 10,
+              padding: collapsed ? "10px" : "10px 14px",
+              borderRadius: 8,
+              textDecoration: "none",
+              fontSize: 13,
+              fontWeight: 500,
+              transition: "all 0.15s ease",
+              background: isActive ? "#2d4a7c" : "transparent",
+              color: isActive ? "#fff" : "#a3b8d9",
+              border: "1px solid transparent",
+              overflow: "hidden",
+              whiteSpace: "nowrap",
+            })}
+          >
+            {({ isActive }) => (
+              <>
+                <History size={16} style={{ flexShrink: 0 }} />
+                {!collapsed && <span style={{ flex: 1 }}>Activity Log</span>}
+                {!collapsed && isActive && (
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "#60a5fa",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+              </>
+            )}
+          </NavLink>
+        </div>
 
         {/* Logout */}
         <div style={{ padding: 8, borderTop: "1px solid rgba(255,255,255,0.1)", flexShrink: 0 }}>
