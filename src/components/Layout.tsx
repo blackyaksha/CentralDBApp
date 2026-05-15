@@ -15,8 +15,8 @@ function SidebarLogo({ collapsed }: { collapsed: boolean }) {
       alt="Logo"
       title="File Manager"
       style={{
-        width: collapsed ? 40 : "100%",
-        maxWidth: collapsed ? 40 : 180,
+        width: collapsed ? 60 : "100%",
+        maxWidth: collapsed ? 60 : 280,
         height: "auto",
         objectFit: "contain",
         flexShrink: 0,
