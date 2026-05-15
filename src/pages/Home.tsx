@@ -533,6 +533,7 @@ function FileExplorer({ items, onDelete }: { items: ExplorerItem[]; onDelete: (i
                     href={folder.url || "#"}
                     target={folder.url && folder.url !== "#" ? "_blank" : undefined}
                     rel="noopener noreferrer"
+                    onClick={() => logActivity('folder', 'Opened', folder.name)}
                     style={{ display: "flex", flexDirection: "column", gap: 12, cursor: "pointer", textDecoration: "none" }}
                   >
                     <div style={{

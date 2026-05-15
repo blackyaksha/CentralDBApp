@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
+import { logActivity } from '../services/activityLogger';
 import type { DatabaseRead } from '../generated/models/DatabaseModel'
 import {
   pdfIcon, docxIcon, xlsxIcon, pptxIcon,
@@ -284,7 +285,13 @@ export default function Monitoring() {
         onMouseEnter={() => setHoveredCard(keyStr)}
         onMouseLeave={() => setHoveredCard(null)}
         onClick={() => {
-          if (rowHref) window.open(rowHref, '_blank', 'noopener,noreferrer')
+          if (!rowHref) return
+          if (isFolderItem) {
+            logActivity('folder', 'Opened', String(title))
+          } else {
+            logActivity('file', 'Opened', String(title))
+          }
+          window.open(rowHref, '_blank', 'noopener,noreferrer')
         }}
         style={{
           ...s.card,

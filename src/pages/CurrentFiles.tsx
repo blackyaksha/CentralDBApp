@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
+import { logActivity } from '../services/activityLogger';
 import type { DatabaseRead } from '../generated/models/DatabaseModel'
 import {
   pdfIcon, docxIcon, xlsxIcon, pptxIcon, parentIcon,
@@ -319,6 +320,7 @@ export default function CurrentFiles() {
       // Open parent folder URL with proper SharePoint site structure
       const folderName = getValue(item, 'Title')
       const folderUrl = `https://energyregcomm.sharepoint.com/sites/CentralDatabase/Shared%20Documents/${encodeURIComponent(folderName)}`
+      logActivity('folder', 'Opened', `Shared Documents/${folderName}`)
       window.open(folderUrl, '_blank', 'noopener,noreferrer')
     } else if (isItemFolder) {
       // Determine the real path segments for the folder and update state
@@ -326,22 +328,31 @@ export default function CurrentFiles() {
       const parts = getPathParts(filePath)
       // strip leading "Shared Documents" if present
       if (parts[0] === 'Shared Documents') parts.shift()
+      const fullFolderPath = parts.length ? `Shared Documents/${parts.join('/')}` : 'Shared Documents'
+      logActivity('folder', 'Opened', fullFolderPath)
       setCurrentPath(parts)
       setQuery('') // Clear search when navigating
     } else if (rowHref) {
-      // Open file URL
+      const fileName = String(getValue(item, 'Title') ?? getValue(item, 'FilePath') ?? 'File')
+      logActivity('file', 'Opened', fileName)
       window.open(rowHref, '_blank', 'noopener,noreferrer')
     }
   }
 
   const navigateToPath = (pathIndex: number) => {
-    setCurrentPath(currentPath.slice(0, pathIndex + 1))
+    const newPath = currentPath.slice(0, pathIndex + 1)
+    const folderLabel = newPath.length ? `Shared Documents/${newPath.join('/')}` : 'Shared Documents'
+    logActivity('folder', 'Opened', folderLabel)
+    setCurrentPath(newPath)
     setQuery('')
   }
 
   const goBack = () => {
     if (currentPath.length > 0) {
-      setCurrentPath(currentPath.slice(0, -1))
+      const newPath = currentPath.slice(0, -1)
+      const folderLabel = newPath.length ? `Shared Documents/${newPath.join('/')}` : 'Shared Documents'
+      logActivity('folder', 'Opened', folderLabel)
+      setCurrentPath(newPath)
       setQuery('')
     }
   }
