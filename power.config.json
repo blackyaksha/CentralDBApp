@@ -1,6 +1,6 @@
 {
   "appId": "93b69f3e-5e47-48a2-aae9-66a3be54738e",
-  "appDisplayName": "Central Database App",
+  "appDisplayName": "Central Database",
   "description": null,
   "environmentId": "e0ffbd29-750c-e27a-bc18-1dd635893797",
   "buildPath": "./dist",

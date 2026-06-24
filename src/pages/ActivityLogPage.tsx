@@ -41,7 +41,11 @@ export default function ActivityLogPage() {
   return (
     <div style={{
       padding: '32px',
-      minHeight: '100%',
+      flex: 1,
+      boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column',
+      overflowY: 'auto',
       background: '#0f1f3d',
       fontFamily: "'Geist', 'DM Sans', system-ui, sans-serif",
       color: '#fff'
@@ -98,7 +102,9 @@ export default function ActivityLogPage() {
         borderRadius: 12,
         border: '1px solid rgba(255,255,255,0.1)',
         padding: '20px',
-        maxWidth: 800
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
       }}>
         {activities.length === 0 ? (
           <div style={{
@@ -106,7 +112,7 @@ export default function ActivityLogPage() {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            minHeight: 200,
+            flex: 1,
             gap: 12
           }}>
             <Clock size={48} color="rgba(255,255,255,0.2)" />

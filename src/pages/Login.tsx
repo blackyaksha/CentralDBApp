@@ -4,6 +4,9 @@ import { Database } from "lucide-react";
 import { ADMIN_PASS, ADMIN_USER, CLIENT_PASSWORD, CLIENT_USERS } from "../config";
 import { logActivity } from "../services/activityLogger";
 
+type UserRole = 'staff' | 'viewer'
+type UserRecord = { displayName: string; role: UserRole }
+
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -13,12 +16,20 @@ const PASSWORD = CLIENT_PASSWORD
 
 const ADMIN = { username: ADMIN_USER, password: ADMIN_PASS }
 
-const [users, setUsers] = useState<Record<string, string>>(CLIENT_USERS)
+const hydrateUsers = (raw: Record<string, any>): Record<string, UserRecord> => {
+  const result: Record<string, UserRecord> = {}
+  for (const [k, v] of Object.entries(raw)) {
+    result[k] = typeof v === 'string' ? { displayName: v, role: 'staff' } : v as UserRecord
+  }
+  return result
+}
+const [users, setUsers] = useState<Record<string, UserRecord>>(hydrateUsers(CLIENT_USERS))
+console.log('CLIENT_USERS', CLIENT_USERS)  // ← add this
 
 const [showAdminModal, setShowAdminModal] = useState(false)
 const [adminCreds, setAdminCreds] = useState({username: "", password: ""}) 
 const [adminAuthed, setAdminAuthed] = useState(false)
-const [newUser, setNewUser] = useState({username: "", displayName: ""})
+const [newUser, setNewUser] = useState({ username: "", displayName: "", role: "viewer" as UserRole })
 const [adminError, setAdminError] = useState("")
 
 const handleAdminAuth = () => {
@@ -39,8 +50,8 @@ const handleAddUser = () => {
     setAdminError("Username already exists")
     return
   }
-  setUsers(prev => ({ ...prev, [newUser.username.toUpperCase()]: newUser.displayName }))
-  setNewUser({ username: "", displayName: "" })
+  setUsers(prev => ({ ...prev, [newUser.username.toUpperCase()]: { displayName: newUser.displayName, role: newUser.role } }))
+  setNewUser({ username: "", displayName: "", role: "viewer" })
   setAdminError("")
   alert(`User "${newUser.username.toUpperCase()}" added successfully`)
 }
@@ -49,23 +60,32 @@ const closeAdminModal = () => {
   setShowAdminModal(false)
   setAdminAuthed(false)
   setAdminCreds({ username: "", password: "" })
-  setNewUser({ username: "", displayName: "" })
+  setNewUser({ username: "", displayName: "", role: "viewer" })
   setAdminError("")
 }
 
 const handleLogin = (e: React.FormEvent) => {
   e.preventDefault()
-  const displayName = users[username]
+  const key = username.toUpperCase()
+  const record = users[key]
+  const displayName = typeof record === 'string' ? record : record?.displayName
+
+  console.log('key:', key)
+  console.log('record:', record)
+  console.log('displayName:', displayName)
+  console.log('password entered:', password)
+  console.log('PASSWORD expected:', PASSWORD)
+
   if (displayName && password === PASSWORD) {
-    sessionStorage.setItem("username", username)
+    sessionStorage.setItem("username", key)
     sessionStorage.setItem("displayName", displayName)
+    sessionStorage.setItem("role", typeof record === 'string' ? 'staff' : (record?.role ?? 'staff'))
     logActivity('session', 'Logged in', displayName)
-    navigate("/app/home")
+    navigate("/app/home", { replace: true })
   } else {
     alert("Invalid username or password")
   }
 }
-
   return (
     <div style={styles.page}>
       <div style={styles.container}>
@@ -199,6 +219,19 @@ const handleLogin = (e: React.FormEvent) => {
                       style={{ ...styles.input, marginTop: 6, marginLeft: 7 }}
                     />
                   </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>
+                      Role / Access Level
+                    </label>
+                    <select
+                      value={newUser.role}
+                      onChange={e => setNewUser(p => ({ ...p, role: e.target.value as UserRole }))}
+                      style={{ ...styles.input, marginTop: 6, background: '#0f1f3d', color: '#ffffff' }}
+                    >
+                      <option value="staff">Staff — full access</option>
+                      <option value="viewer">Viewer — Documents Monitor only</option>
+                    </select>
+                  </div>
 
                   {/* Current users list */}
                   <div style={{ marginTop: 4 }}>
@@ -206,7 +239,7 @@ const handleLogin = (e: React.FormEvent) => {
                       Current Users
                     </p>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 120, overflowY: "auto" }}>
-                      {Object.entries(users).map(([uname, dname]) => (
+                      {Object.entries(users).map(([uname, rec]) => (
                         <div key={uname} style={{
                           display: "flex", justifyContent: "space-between", alignItems: "center",
                           padding: "6px 10px", borderRadius: 7,
@@ -214,7 +247,12 @@ const handleLogin = (e: React.FormEvent) => {
                           border: "1px solid rgba(255,255,255,0.08)",
                         }}>
                           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>{uname}</span>
-                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{dname}</span>
+                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{typeof rec === "string" ? rec : rec.displayName}</span>
+                          <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 99, fontWeight: 600,
+                            background: (typeof rec === 'string' ? 'staff' : rec.role) === 'viewer' ? 'rgba(234,179,8,0.12)' : 'rgba(59,130,246,0.15)',
+                            color: (typeof rec === 'string' ? 'staff' : rec.role) === 'viewer' ? '#fde047' : '#93c5fd',
+                            border: (typeof rec === 'string' ? 'staff' : rec.role) === 'viewer' ? '1px solid rgba(234,179,8,0.3)' : '1px solid rgba(59,130,246,0.3)',
+                          }}>{typeof rec === 'string' ? 'staff' : rec.role}</span>
                           <button
                             onClick={() => setUsers(prev => {
                               const next = { ...prev }

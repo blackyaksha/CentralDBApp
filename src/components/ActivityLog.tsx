@@ -1,80 +1,190 @@
-import { Clock, FileText, Folder } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Clock, FileText, Folder, User, X } from 'lucide-react';
+import { clearActivityLog } from '../services/activityLogger';
 
 type Activity = {
   id: string;
-  type: 'file' | 'folder';
+  type: 'file' | 'folder' | 'session';
   action: string;
   name: string;
   timestamp: string;
+  user: string;
 };
-    
-const sampleActivities: Activity[] = [
-  { id: '1', type: 'file', action: 'Opened', name: 'Database App.docx', timestamp: '2 min ago' },
-  { id: '2', type: 'folder', action: 'Added', name: 'HR Documents', timestamp: '5 min ago' },
-  { id: '3', type: 'file', action: 'Downloaded', name: 'Budget 2026.xlsx', timestamp: '10 min ago' },
-  { id: '4', type: 'file', action: 'Viewed', name: 'SPMS Matrix.xlsx', timestamp: '15 min ago' },
-];
 
-export default function ActivityLog({ collapsed }: { collapsed: boolean }) {
-  if (collapsed) {
-    return (
-      <div style={{ padding: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <Clock size={16} color="rgba(255,255,255,0.5)" />
-        </div>
-      </div>
-    );
-  }
+export default function ActivityLogPage() {
+  const [activities, setActivities] = useState<Activity[]>([]);
+
+  const loadActivities = () => {
+    const stored = localStorage.getItem('app_activities');
+    if (stored) {
+      try {
+        const parsed: Activity[] = JSON.parse(stored);
+        const username = sessionStorage.getItem('displayName') || 'User';
+        setActivities(parsed.filter((a) => a.user === username));
+      } catch {
+        setActivities([]);
+      }
+    } else {
+      setActivities([]);
+    }
+  };
+
+  useEffect(() => {
+    loadActivities();
+  }, []);
+
+  const handleClear = () => {
+    clearActivityLog();
+    setActivities([]);
+  };
 
   return (
-    <div style={{ padding: '12px 8px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
-      <p style={{
-        margin: '0 0 8px 0',
-        fontSize: 10,
-        fontWeight: 600,
-        color: 'rgba(255,255,255,0.22)',
-        textTransform: 'uppercase',
-        letterSpacing: '0.1em'
-      }}>
-        Recent Activity
-      </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto' }}>
-        {sampleActivities.map((activity) => (
-          <div key={activity.id} style={{
-            display: 'flex',
+    <div style={{
+      padding: '32px',
+      flex: 1,
+      boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column',
+      background: '#0f1f3d',
+      fontFamily: "'Geist', 'DM Sans', system-ui, sans-serif",
+      color: '#fff'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, gap: 16 }}>
+        <div>
+          <h1 style={{
+            margin: '0 0 6px 0',
+            fontSize: 40,
+            fontWeight: 600,
+            color: '#fff',
+            letterSpacing: '-0.02em'
+          }}>
+            Activity Log
+          </h1>
+          <p style={{
+            margin: 0,
+            fontSize: 13.5,
+            color: 'rgba(255,255,255,0.38)'
+          }}>
+            Track your recent activities in the app
+          </p>
+        </div>
+        <button
+          onClick={handleClear}
+          style={{
+            display: 'inline-flex',
             alignItems: 'center',
             gap: 8,
-            padding: '6px 8px',
-            borderRadius: 6,
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.05)',
+            padding: '10px 14px',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'rgba(255,255,255,0.05)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: 13,
+            fontWeight: 600,
+            transition: 'all 0.15s ease',
+            fontFamily: 'inherit'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+          }}
+        >
+          <X size={14} /> Clear log
+        </button>
+      </div>
+
+      <div style={{
+        background: '#1a2f52',
+        borderRadius: 12,
+        border: '1px solid rgba(255,255,255,0.1)',
+        padding: '20px',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        {activities.length === 0 ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flex: 1,
+            gap: 12
           }}>
-            {activity.type === 'file' ? (
-              <FileText size={14} color="rgba(255,255,255,0.6)" />
-            ) : (
-              <Folder size={14} color="rgba(255,255,255,0.6)" />
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontSize: 11,
-                fontWeight: 500,
-                color: 'rgba(255,255,255,0.8)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                {activity.action} {activity.name}
-              </div>
-              <div style={{
-                fontSize: 9,
-                color: 'rgba(255,255,255,0.4)',
-                marginTop: 2
-              }}>
-                {activity.timestamp}
-              </div>
-            </div>
+            <Clock size={48} color="rgba(255,255,255,0.2)" />
+            <span style={{
+              fontSize: 16,
+              color: 'rgba(255,255,255,0.4)',
+              textAlign: 'center'
+            }}>
+              No activities yet. Start using the app to see your actions here.
+            </span>
           </div>
-        ))}
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {activities.map((activity) => (
+              <div key={activity.id} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                padding: '14px 16px',
+                borderRadius: 8,
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                transition: 'background 0.15s ease'
+              }}>
+                <div style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 8,
+                  background: 'rgba(99,102,241,0.15)',
+                  border: '1px solid rgba(99,102,241,0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {activity.type === 'file' ? (
+                    <FileText size={18} color="#818cf8" />
+                  ) : activity.type === 'folder' ? (
+                    <Folder size={18} color="#818cf8" />
+                  ) : (
+                    <User size={18} color="#818cf8" />
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: 'rgba(255,255,255,0.9)',
+                    marginBottom: 4
+                  }}>
+                    {activity.action} <strong>{activity.name}</strong>
+                  </div>
+                  <div style={{
+                    fontSize: 12,
+                    color: 'rgba(255,255,255,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12
+                  }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <User size={12} />
+                      {activity.user}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Clock size={12} />
+                      {activity.timestamp}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
