@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Ignore local Supabase client file containing keys
+/src/services/supabaseClient.ts
