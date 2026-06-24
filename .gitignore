@@ -30,5 +30,4 @@ dist-ssr
 
 # Ignore local Supabase client file containing keys
 /src/services/supabaseClient.ts
-
 /src/services/sharePointApi.ts
