@@ -253,7 +253,9 @@ export default function DocumentsMonitor() {
   }
 
   const exportXlsx = () => {
-    const aoa = [COLUMNS, ...rows.map(r => COLUMNS.map(c => r[c] ?? ''))]
+    const periodLabel = getExportPeriodLabel(filtered)
+    const titleRow = `Outgoing and Incoming Documents Monitoring — ${periodLabel}`
+    const aoa = [[titleRow], [], COLUMNS, ...filtered.map(r => COLUMNS.map(c => r[c] ?? ''))]
     const ws = XLSX.utils.aoa_to_sheet(aoa)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
@@ -263,7 +265,7 @@ export default function DocumentsMonitor() {
 
   const exportPdf = async () => {
   setExportMenuOpen(false)
-  if (!rows.length) return
+  if (!filtered.length) return
 
   const pdf = new jsPDF('l', 'mm', 'a4')
   const pw = pdf.internal.pageSize.getWidth()
@@ -284,6 +286,7 @@ export default function DocumentsMonitor() {
   const drawHeader = (startY: number) => {
     pdf.setFillColor(15, 36, 68)
     pdf.setDrawColor(15, 36, 68)
+    pdf.setLineWidth(0.35)
     let x = margin
     COLUMNS.forEach((_, i) => {
       pdf.rect(x, startY, colWidths[i], headerHeight, 'FD')
@@ -305,11 +308,14 @@ export default function DocumentsMonitor() {
   }
 
   // Title
+  const periodLabel = getExportPeriodLabel(filtered)
+  const titleText = `Outgoing and Incoming Documents Monitoring — ${periodLabel}`
+  const titleLines = pdf.splitTextToSize(titleText, usableWidth)
   pdf.setFontSize(13)
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor(20, 20, 20)
-  pdf.text('Outgoing and Incoming Documents Monitoring', margin, y + 6)
-  y += 14
+  pdf.text(titleLines, margin, y + 6)
+  y += 14 + (titleLines.length - 1) * 4
 
   y = drawHeader(y)
 
@@ -331,7 +337,8 @@ export default function DocumentsMonitor() {
       pdf.rect(margin, y, usableWidth, thisRowHeight, 'F')
     }
 
-    pdf.setDrawColor(200, 210, 220)
+    pdf.setDrawColor(140, 156, 173)
+    pdf.setLineWidth(0.25)
     let x = margin
     COLUMNS.forEach((_, i) => {
       pdf.rect(x, y, colWidths[i], thisRowHeight, 'S')
@@ -361,6 +368,26 @@ export default function DocumentsMonitor() {
     if (!v) return null
     const d = new Date(v)
     return isNaN(d.getTime()) ? null : d
+  }
+
+  const getExportPeriodLabel = (rowsToExport: Row[]) => {
+    const dates = rowsToExport
+      .map(r => parseDate(r['Date']))
+      .filter((d): d is Date => d instanceof Date && !isNaN(d.getTime()))
+
+    if (!dates.length) {
+      const now = new Date()
+      return now.toLocaleString('default', { month: 'long', year: 'numeric' })
+    }
+
+    const min = new Date(Math.min(...dates.map(d => d.getTime())))
+    const max = new Date(Math.max(...dates.map(d => d.getTime())))
+
+    if (min.getMonth() === max.getMonth() && min.getFullYear() === max.getFullYear()) {
+      return min.toLocaleString('default', { month: 'long', year: 'numeric' })
+    }
+
+    return `${min.toLocaleString('default', { month: 'long' })} ${min.getFullYear()} - ${max.toLocaleString('default', { month: 'long' })} ${max.getFullYear()}`
   }
 
 const filtered = useMemo(() => {
@@ -535,12 +562,12 @@ const filtered = useMemo(() => {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const S: Record<string, React.CSSProperties> = {
-  root: { padding: '24px', fontFamily: 'system-ui, sans-serif' },
-  header: { marginBottom: '20px' },
+  root: { display: 'flex', flexDirection: 'column', height: '100vh', padding: '24px', fontFamily: 'system-ui, sans-serif', boxSizing: 'border-box' as const },
+  header: { marginBottom: '20px', flexShrink: 0 },
   heading: { margin: '0 0 4px', fontSize: '33px', fontWeight: 500, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '10px' },
   subheading: { margin: 0, fontSize: '13px', color: '#64748b' },
   badge: { display: 'inline-block', padding: '2px 10px', fontSize: '12px', fontWeight: 400, borderRadius: '99px', background: 'rgba(255,255,255,0.06)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.08)' },
-  toolbar: { display: 'flex', flexWrap: 'wrap' as const, gap: '8px', alignItems: 'center', marginBottom: '16px' },
+  toolbar: { display: 'flex', flexWrap: 'wrap' as const, gap: '8px', alignItems: 'center', marginBottom: '16px', flexShrink: 0 },
   toolbarLeft: { display: 'flex', flexWrap: 'wrap' as const, gap: '8px', alignItems: 'center' },
   toolbarRight: { display: 'flex', flexWrap: 'wrap' as const, gap: '8px', alignItems: 'center', marginLeft: 'auto' },
   btn: { padding: '7px 13px', fontSize: '13px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#cbd5e1', borderRadius: '8px', cursor: 'pointer', whiteSpace: 'nowrap' as const, fontWeight: 400, display: 'inline-flex', alignItems: 'center', gap: '6px' },
@@ -552,11 +579,11 @@ const S: Record<string, React.CSSProperties> = {
   filterGroup: { display: 'flex', alignItems: 'center', gap: '6px' },
   filterLabel: { fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' as const },
   filterInput: { fontSize: '13px', padding: '6px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: '#cbd5e1' },
-  tableWrap: { border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', overflowX: 'auto' as const },
-  table: { borderCollapse: 'collapse' as const, width: '100%', fontSize: '15px' },
-  th: { padding: '10px 14px', textAlign: 'left' as const, fontWeight: 500, fontSize: '15px', color: '#64748b', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' as const },
+  tableWrap: { flex: 1, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', overflowX: 'auto' as const, overflowY: 'auto' as const, minHeight: 0 },
+  table: { borderCollapse: 'collapse' as const, width: '100%', fontSize: '15px', border: '1px solid rgba(148, 163, 184, 0.25)' },
+  th: { padding: '10px 14px', textAlign: 'left' as const, fontWeight: 500, fontSize: '15px', color: '#64748b', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' as const },
   tr: { borderBottom: '1px solid rgba(255,255,255,0.04)' },
-  td: { padding: '7px 14px', verticalAlign: 'middle' as const, color: '#cbd5e1' },
+  td: { padding: '7px 14px', verticalAlign: 'middle' as const, color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.08)' },
   cellInput: { width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '15px', color: '#cbd5e1', fontFamily: 'system-ui, sans-serif', padding: '2px 0' },
   empty: { padding: '40px', textAlign: 'center' as const, color: '#475569', fontSize: '13px' },
   tdWrap: { padding: '7px 14px', verticalAlign: 'top' as const, color: '#cbd5e1', minWidth: '200px', maxWidth: '320px' },
