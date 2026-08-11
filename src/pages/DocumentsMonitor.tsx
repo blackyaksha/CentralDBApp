@@ -347,7 +347,7 @@ export default function DocumentsMonitor() {
 
     pdf.setTextColor(20, 20, 20)
     x = margin
-    COLUMNS.forEach((col, i) => {
+    COLUMNS.forEach((_, i) => {
       pdf.text(cellTexts[i], x + 2, y + 5)
       x += colWidths[i]
     })
