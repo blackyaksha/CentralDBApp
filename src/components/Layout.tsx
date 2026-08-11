@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate, Navigate, useLocation } from "react-router";
-import { Home, FolderOpen, Activity, LogOut, History } from "lucide-react";
+import { Home, FolderOpen, LogOut, History } from "lucide-react";
 import { useState } from "react";
 
 import { PD_LOGO } from "../assets/logoBase64";

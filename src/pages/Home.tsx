@@ -8,7 +8,6 @@ import {
   FileCode,
   Folder,
   Link as LinkIcon,
-  ChevronDown,
 } from "lucide-react";
 import { logActivity } from "../services/activityLogger";
 import type { DatabaseRead } from "../generated/models/DatabaseModel";
