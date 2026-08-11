@@ -206,8 +206,7 @@ function apiGetPathParts(path: string): string[] {
 // "1 PD ONGOING" pinned directly to its SharePoint folder — no more routing
 // through Monitoring.tsx to get there.
 
-const ONE_PD_ONGOING_URL =
-  "https://energyregcomm-my.sharepoint.com/my?id=%2Fpersonal%2Fppis%5Fpd%5Ferc%5Fph%2FDocuments%2F1%20PD%20ONGOING&viewid=0fb47cea%2Dbb30%2D4726%2Dac11%2D004a2a8d64b8";
+const ONE_PD_ONGOING_URL = import.meta.env.VITE_ONE_PD_ONGOING_URL as string;
 
 const initialPinned: PinnedFile[] = [
   {
