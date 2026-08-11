@@ -56,7 +56,6 @@ export default function Layout() {
   const allNavItems = [
     { path: "/app/home", icon: Home, label: "Home", roles: ["staff"] },
     { path: "/app/current-files", icon: FolderOpen, label: "Current Files", roles: ["staff"] },
-    { path: "/app/monitoring", icon: Activity, label: "Monitoring", roles: ["staff"] },
     { path: "/app/documents-monitor", icon: FolderOpen, label: "Outgoing and Incoming Docs", roles: ["staff", "viewer"] },
   ]
 
@@ -75,6 +74,31 @@ export default function Layout() {
         fontFamily: "system-ui, sans-serif",
       }}
     >
+      {/* Global scrollbar theming — matches the app's dark navy palette instead
+          of the browser's default light/gray scrollbar. Applies to every
+          scrollable element in the app (sidebar nav, main content, etc). */}
+      <style>{`
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255,255,255,0.18) transparent;
+        }
+        *::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        *::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        *::-webkit-scrollbar-thumb {
+          background-color: rgba(255,255,255,0.15);
+          border-radius: 8px;
+          border: 2px solid #0f1f3d;
+          background-clip: padding-box;
+        }
+        *::-webkit-scrollbar-thumb:hover {
+          background-color: rgba(255,255,255,0.28);
+        }
+      `}</style>
       {/* ── SIDEBAR ── */}
       <aside
         onClick={() => setCollapsed((prev) => !prev)}
@@ -226,7 +250,7 @@ export default function Layout() {
         }}
       >
         <RoleGuard>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', overflowX: 'hidden' }}>
             <Outlet />
           </div>
         </RoleGuard>

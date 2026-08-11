@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { logActivity } from '../services/activityLogger';
 import type { DatabaseRead } from '../generated/models/DatabaseModel'
 import {
@@ -8,11 +8,44 @@ import {
 } from '../assets/iconsBase64';
 import { FLOW_ENDPOINT } from '../config'
 
+// Wraps fetch with: (1) a hard timeout so a hung request doesn't stall
+// forever, and (2) one retry with backoff for transient gateway errors
+// (502/503/504) before giving up and surfacing an error to the caller.
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 1,
+  timeoutMs = 15000,
+  backoffMs = 1000
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal })
+      clearTimeout(timeoutId)
+      if (!response.ok && [502, 503, 504].includes(response.status) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, backoffMs * (attempt + 1)))
+        continue
+      }
+      return response
+    } catch (err) {
+      clearTimeout(timeoutId)
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, backoffMs * (attempt + 1)))
+        continue
+      }
+      throw err
+    }
+  }
+}
+
 export default function CurrentFiles() {
   const [items, setItems] = useState<DatabaseRead[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [nextLink, setNextLink] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
@@ -28,13 +61,14 @@ export default function CurrentFiles() {
     if (fetchingRef.current) return
     fetchingRef.current = true
     try {
-      if (isFirstLoad) setLoading(true)
+      if (isFirstLoad) { setLoading(true); setError(null) }
       else setLoadingMore(true)
+      setLoadMoreError(null)
 
       const body: Record<string, any> = { pageSize: PAGE_SIZE }
       if (nextLink) body.nextLink = nextLink
 
-      const response = await fetch(
+      const response = await fetchWithRetry(
         FLOW_ENDPOINT,
         {
           method: 'POST',
@@ -43,16 +77,31 @@ export default function CurrentFiles() {
         }
       )
 
-      if (!response.ok) throw new Error(`Flow request failed: ${response.status}`)
+      if (!response.ok) {
+        throw new Error(
+          response.status === 504
+            ? "The server took too long to respond (504). This can happen when there's a lot of data to load — click Retry, or try again in a moment."
+            : `Flow request failed: ${response.status}`
+        )
+      }
 
       const data = await response.json()
       const newItems = Array.isArray(data.items) ? data.items : []
 
-      setItems(prev => isFirstLoad ? newItems : [...(prev ?? []), ...newItems])
+      setItems(prev => dedupeItems(isFirstLoad ? newItems : [...(prev ?? []), ...newItems]))
       setNextLink(data.nextLink ?? null)
       setHasMore(!!data.nextLink)
     } catch (err: any) {
-      setError(err.message)
+      const message =
+        err?.name === 'AbortError'
+          ? 'The request timed out. Click Retry to try again.'
+          : err?.message ?? 'Failed to load files'
+      // A failed *first* load has nothing to show, so it blocks the whole
+      // page. A failed *later* page (while scrolling) shouldn't wipe out
+      // everything that already loaded successfully — surface it inline
+      // near the bottom instead and let the user retry from there.
+      if (isFirstLoad) setError(message)
+      else setLoadMoreError(message)
     } finally {
       fetchingRef.current = false
       setLoading(false)
@@ -63,7 +112,7 @@ export default function CurrentFiles() {
   useEffect(() => { fetchAllPages(true) }, [])
 
   useEffect(() => {
-    if (!hasMore) return
+    if (!hasMore || loadMoreError) return
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !fetchingRef.current) fetchAllPages(false)
@@ -72,7 +121,7 @@ export default function CurrentFiles() {
     )
     if (sentinelRef.current) observer.observe(sentinelRef.current)
     return () => observer.disconnect()
-  }, [hasMore, nextLink])
+  }, [hasMore, nextLink, loadMoreError])
 
   const getValue = (obj: any, key: string) => {
     if (!obj) return undefined
@@ -88,13 +137,33 @@ export default function CurrentFiles() {
     return path.split('/').filter(p => p.trim() !== '')
   }
 
+  const getItemKey = (item: any) => {
+    return String(getValue(item, 'ID') ?? getValue(item, 'id') ?? getValue(item, 'FilePath') ?? getValue(item, 'Title') ?? '')
+  }
+
+  const dedupeItems = (items: any[]) => {
+    const seen = new Set<string>()
+    return items.filter(item => {
+      const key = getItemKey(item)
+      if (!key) return true
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
   const getCurrentLevelItems = (allItems: any[]): any[] => {
     const currentPathStr = currentPath.length > 0 ? currentPath.join('/') + '/' : ''
     const levelItems: any[] = []
+    const seenKeys = new Set<string>()
 
     allItems.forEach(item => {
       const itemPath = String(getValue(item, 'FilePath') ?? '')
       const isItemFolder = isFolder(item)
+      const itemKey = getItemKey(item)
+
+      if (itemKey && seenKeys.has(itemKey)) return
+      if (itemKey) seenKeys.add(itemKey)
 
       if (currentPathStr === '') {
         // Parent folder level - show parent folders (skip Shared Documents)
@@ -125,12 +194,26 @@ export default function CurrentFiles() {
 
           if (pathParts.length === 1) {
             // Direct child
-            levelItems.push(item)
+            if (isItemFolder) {
+              // Avoid pushing a duplicate if a placeholder (or another real
+              // record) for this same folder name is already in the list
+              const existingIdx = levelItems.findIndex(it =>
+                isFolder(it) && getValue(it, 'Title') === getValue(item, 'Title')
+              )
+              if (existingIdx === -1) {
+                levelItems.push(item)
+              } else if (getValue(levelItems[existingIdx], 'isVirtual')) {
+                // Prefer the real item (has real ID/FileURL/etc.) over the placeholder
+                levelItems[existingIdx] = item
+              }
+            } else {
+              levelItems.push(item)
+            }
           } else if (pathParts.length > 1 && isItemFolder) {
             // Create virtual folder for next level
             const nextFolder = pathParts[0]
             const existingFolder = levelItems.find(it =>
-              isFolder(it) && getValue(it, 'Title') === nextFolder && getValue(it, 'isVirtual')
+              isFolder(it) && getValue(it, 'Title') === nextFolder
             )
             if (!existingFolder) {
               levelItems.push({
@@ -230,6 +313,75 @@ export default function CurrentFiles() {
     return pdfIcon
   }
 
+  const lowerQuery = query.trim().toLowerCase()
+
+  const matchesQuery = (it: any) => {
+    if (!lowerQuery) return true
+    const tokens = lowerQuery.split(/\s+/).filter(Boolean)
+    const title = String(getValue(it, 'Title') ?? '').toLowerCase()
+    const rawPath = String(getValue(it, 'FilePath') ?? '').toLowerCase()
+    // only consider the final segment (filename) of the path for matching
+    const filename = rawPath.split('/').filter(Boolean).pop() || ''
+    return tokens.every((t) => title.includes(t) || filename.includes(t))
+  }
+
+  // The three computations below each walk the full `items` array (which
+  // grows as infinite-scroll loads more pages, potentially into the
+  // thousands). Previously these were plain consts recomputed on *every*
+  // render — including on every mouseenter/mouseleave as the user hovered
+  // cards, and every expand-arrow toggle — which made the grid feel
+  // increasingly laggy the more had loaded. Memoizing them so they only
+  // re-run when the actual data/search/folder changes is what fixes that.
+  const allCurrentLevelItems = useMemo(
+    () => (items ? getCurrentLevelItems(items) : []),
+    [items, currentPath]
+  )
+
+  // group search results by parent folder when there is a query and at root
+  const searchGroups = useMemo(() => {
+    const groups: Record<string, any[]> = {}
+    if (lowerQuery && currentPath.length === 0 && items) {
+      items.forEach((it) => {
+        if (!matchesQuery(it)) return
+        const filePath = String(getValue(it, 'FilePath') ?? '').trim()
+        const parts = filePath.split('/').filter(Boolean)
+        const parent = parts.length >= 2 ? parts[1] : '(root)'
+        if (!groups[parent]) groups[parent] = []
+        groups[parent].push(it)
+      })
+      // sort each group as before (folders first)
+      Object.keys(groups).forEach((key) => {
+        groups[key].sort((a, b) => {
+          const aFolder = isFolder(a) ? 0 : 1
+          const bFolder = isFolder(b) ? 0 : 1
+          if (aFolder !== bFolder) return aFolder - bFolder
+          const aTitle = String(getValue(a, 'Title') ?? '').toLowerCase()
+          const bTitle = String(getValue(b, 'Title') ?? '').toLowerCase()
+          return aTitle.localeCompare(bTitle)
+        })
+      })
+    }
+    return groups
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, currentPath, lowerQuery])
+
+  const filteredItems = useMemo(
+    () =>
+      allCurrentLevelItems.filter(matchesQuery).sort((a, b) => {
+        const aPinned = getValue(a, 'isParentCard') ? 0 : 1
+        const bPinned = getValue(b, 'isParentCard') ? 0 : 1
+        if (aPinned !== bPinned) return aPinned - bPinned
+        const aFolder = isFolder(a) ? 0 : 1
+        const bFolder = isFolder(b) ? 0 : 1
+        if (aFolder !== bFolder) return aFolder - bFolder
+        const aTitle = String(getValue(a, 'Title') ?? '').toLowerCase()
+        const bTitle = String(getValue(b, 'Title') ?? '').toLowerCase()
+        return aTitle.localeCompare(bTitle)
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allCurrentLevelItems, lowerQuery]
+  )
+
   if (loading) return (
     <div style={s.page}>
       <style>{`
@@ -247,49 +399,12 @@ export default function CurrentFiles() {
 
   if (error) return (
     <div style={s.page}>
-      <p style={{ color: '#fca5a5', fontSize: 13 }}>Error: {error}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
+        <p style={{ color: '#fca5a5', fontSize: 13, margin: 0 }}>Error: {error}</p>
+        <button onClick={() => fetchAllPages(true)} style={s.retryBtn}>Retry</button>
+      </div>
     </div>
   )
-
-  const lowerQuery = query.trim().toLowerCase()
-
-  const allCurrentLevelItems = items ? getCurrentLevelItems(items) : []
-
-  const matchesQuery = (it: any) => {
-    if (!lowerQuery) return true
-    const tokens = lowerQuery.split(/\s+/).filter(Boolean)
-    const title = String(getValue(it, 'Title') ?? '').toLowerCase()
-    const rawPath = String(getValue(it, 'FilePath') ?? '').toLowerCase()
-    // only consider the final segment (filename) of the path for matching
-    const filename = rawPath.split('/').filter(Boolean).pop() || ''
-    return tokens.every((t) => title.includes(t) || filename.includes(t))
-  }
-
-  // group search results by parent folder when there is a query and at root
-  const searchGroups: Record<string, any[]> = {}
-  if (lowerQuery && currentPath.length === 0 && items) {
-    items.forEach((it) => {
-      if (!matchesQuery(it)) return
-      const filePath = String(getValue(it, 'FilePath') ?? '').trim()
-      const parts = filePath.split('/').filter(Boolean)
-      const parent = parts.length >= 2 ? parts[1] : '(root)'
-      if (!searchGroups[parent]) searchGroups[parent] = []
-      searchGroups[parent].push(it)
-    })
-    // sort each group as before (folders first)
-    Object.keys(searchGroups).forEach((key) => {
-      searchGroups[key].sort((a, b) => {
-        const aFolder = isFolder(a) ? 0 : 1
-        const bFolder = isFolder(b) ? 0 : 1
-        if (aFolder !== bFolder) return aFolder - bFolder
-        const aTitle = String(getValue(a, 'Title') ?? '').toLowerCase()
-        const bTitle = String(getValue(b, 'Title') ?? '').toLowerCase()
-        return aTitle.localeCompare(bTitle)
-      })
-    })
-  }
-
-  const filteredItems = allCurrentLevelItems.filter(matchesQuery)
 
   // compute a display path for items, trimming the Shared Documents prefix and
   // optionally the parent folder when performing a search. This keeps the path
@@ -534,6 +649,15 @@ export default function CurrentFiles() {
         `}</style>
         </div>
       )}
+
+      {/* Failed to load a later page — keep whatever already loaded on
+          screen and let the user retry instead of blanking the whole grid */}
+      {loadMoreError && !loadingMore && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '20px 0' }}>
+          <p style={{ color: '#fca5a5', fontSize: 12.5, margin: 0, textAlign: 'center' }}>{loadMoreError}</p>
+          <button onClick={() => fetchAllPages(false)} style={s.retryBtn}>Retry</button>
+        </div>
+      )}
     </div>
   )
 }
@@ -542,6 +666,8 @@ const s: Record<string, React.CSSProperties> = {
   page: {
     padding: '24px',
     minHeight: '100%',
+    height: '100%',
+    overflowY: 'auto',
     background: '#0f1f3d',
     fontFamily: 'system-ui, sans-serif',
     boxSizing: 'border-box',
@@ -694,6 +820,17 @@ const s: Record<string, React.CSSProperties> = {
     borderTopColor: '#60a5fa',
     borderRadius: '50%',
     animation: 'spin 0.8s linear infinite',
+  },
+  retryBtn: {
+    padding: '6px 16px',
+    borderRadius: 7,
+    border: '1px solid rgba(252,165,165,0.35)',
+    background: 'rgba(239,68,68,0.1)',
+    color: '#fca5a5',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
   },
 
   cardHeader: {
