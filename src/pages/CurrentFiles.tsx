@@ -500,7 +500,7 @@ export default function CurrentFiles() {
         ) : (
           <>
             <button
-              onClick={() => { setCurrentPath([]); setQuery('') }}
+              onClick={() => navigateToPath(0)}
               style={s.breadcrumbItem}
             >
               {currentPath[0]}
@@ -553,14 +553,29 @@ export default function CurrentFiles() {
                               style={{
                                 ...s.card,
                                 background: isHov ? 'rgba(37,56,83,0.8)' : '#1a2f52',
-                                borderColor: isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
+                                borderColor: getValue(it, 'isParentCard')
+                                  ? '#60a5fa'
+                                  : (isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)'),
                                 cursor: 'pointer',
                               }}
                             >
                               <img src={getIconSrc(it)} alt="" style={s.fileIcon} />
                               <div style={s.cardBody}>
                                 <div style={s.cardHeader}>
-                                  <h3 style={{ ...s.cardTitle, whiteSpace: expandedMap[keyStr] ? 'normal' : 'nowrap' }} title={String(title)}>
+                                  <h3
+                                    style={{
+                                      ...s.cardTitle,
+                                      whiteSpace: (getValue(it, 'isParentCard') || expandedMap[keyStr]) ? 'normal' : 'nowrap',
+                                      ...(getValue(it, 'isParentCard') ? s.parentCardTitle : {}),
+                                    }}
+                                    title={String(title)}
+                                    onClick={(e) => {
+                                      if (getValue(it, 'isParentCard')) {
+                                        e.stopPropagation()
+                                        handleItemClick(it)
+                                      }
+                                    }}
+                                  >
                                     {String(title)}
                                   </h3>
                                   <button
@@ -602,14 +617,29 @@ export default function CurrentFiles() {
                     style={{
                       ...s.card,
                       background: isHov ? 'rgba(37,56,83,0.8)' : '#1a2f52',
-                      borderColor: isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)',
+                      borderColor: getValue(it, 'isParentCard')
+                        ? '#60a5fa'
+                        : (isHov ? '#3d5a8c' : 'rgba(255,255,255,0.1)'),
                       cursor: 'pointer',
                     }}
                   >
                     <img src={getIconSrc(it)} alt="" style={s.fileIcon} />
                     <div style={s.cardBody}>
                       <div style={s.cardHeader}>
-                        <h3 style={{ ...s.cardTitle, whiteSpace: expandedMap[keyStr] ? 'normal' : 'nowrap' }} title={String(title)}>
+                        <h3
+                          style={{
+                            ...s.cardTitle,
+                            whiteSpace: (getValue(it, 'isParentCard') || expandedMap[keyStr]) ? 'normal' : 'nowrap',
+                            ...(getValue(it, 'isParentCard') ? s.parentCardTitle : {}),
+                          }}
+                          title={String(title)}
+                          onClick={(e) => {
+                            if (getValue(it, 'isParentCard')) {
+                              e.stopPropagation()
+                              handleItemClick(it)
+                            }
+                          }}
+                        >
                           {String(title)}
                         </h3>
                         <button
@@ -681,6 +711,8 @@ const s: Record<string, React.CSSProperties> = {
     background: '#1a2f52',
     borderRadius: 8,
     border: '1px solid rgba(255,255,255,0.1)',
+    height: 40, // <- tweak this to change the breadcrumb bar's height
+    boxSizing: 'border-box',
   },
   breadcrumbItem: {
     background: 'transparent',
@@ -723,7 +755,9 @@ const s: Record<string, React.CSSProperties> = {
     background: '#1a2f52',
     border: '1px solid rgba(255,255,255,0.1)',
     borderRadius: 10,
-    padding: '8px 14px',
+    padding: '12px 14px',
+    height: 48, // <- tweak this to change the search bar's height
+    boxSizing: 'border-box',
   },
   searchInput: {
     flex: 1,
@@ -753,13 +787,13 @@ const s: Record<string, React.CSSProperties> = {
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-    gap: 10,
-  },
-  pathDivider: {
-    padding: '10px 4px 6px',
+    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+    gap: 12,
     marginBottom: 6,
+    padding: '12px 16px',
+    minHeight: 48,
     borderBottom: '1px solid rgba(255,255,255,0.08)',
+    alignItems: 'start', // <- stops cards from stretching to match their tallest row-neighbor
   },
   pathDividerLabel: {
     fontSize: 11,
@@ -773,20 +807,28 @@ const s: Record<string, React.CSSProperties> = {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: '12px 14px',
+    padding: '14px 16px',
     borderRadius: 10,
     border: '1px solid rgba(255,255,255,0.1)',
     transition: 'all 0.15s ease',
     textAlign: 'left',
     width: '100%',
     boxSizing: 'border-box',
+    minHeight: 96,
   },
   fileIcon: {
-    width: 36,
-    height: 36,
-    minWidth: 36,
+    width: 40,
+    height: 40,
+    minWidth: 40,
     objectFit: 'contain',
     flexShrink: 0,
+  },
+  parentCardTitle: {
+  fontWeight: 600,
+  cursor: 'pointer',
+  overflow: 'visible',
+  textOverflow: 'unset',
+  whiteSpace: 'normal',   // lets it wrap/grow instead of ellipsis-truncating
   },
   cardBody: {
     display: 'flex',
@@ -797,17 +839,20 @@ const s: Record<string, React.CSSProperties> = {
   },
   cardTitle: {
     margin: 0,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: 500,
     color: '#fff',
-    flex: 1,                  // ← add this
+    flex: 1,
+    minWidth: 0,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
+    lineHeight: 1.2,
   },
   cardPath: {
     margin: 0,
-    fontSize: 11,
+    fontSize: 12,
     color: '#a3b8d9',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
