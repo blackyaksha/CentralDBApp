@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Plus,
   Trash2,
@@ -862,7 +862,7 @@ export default function Home() {
       loaded = initialPinned;
     }
 
-    // Always make sure "1 PD ONGOING" is pinned, even if this browser already
+    // Always make sure "1 PD Ongoing" is pinned, even if this browser already
     // had other pinned files saved from before — every supervisor should see
     // it regardless of their own localStorage history. Guard against id
     // collisions with whatever's already saved (this is what was causing the
@@ -893,6 +893,32 @@ export default function Home() {
   const [countsError, setCountsError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [countsRetryTick, setCountsRetryTick] = useState(0);
+  const lowerGridRef = useRef<HTMLDivElement | null>(null);
+  const [splitRatio, setSplitRatio] = useState(0.58);
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const container = lowerGridRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const nextRatio = (event.clientX - rect.left) / rect.width;
+      setSplitRatio(Math.min(Math.max(nextRatio, 0.38), 0.72));
+    };
+
+    const stopResize = () => setIsResizing(false);
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", stopResize);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopResize);
+    };
+  }, [isResizing]);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("displayName");
@@ -1194,9 +1220,15 @@ export default function Home() {
       </div>
 
       {/* Files by Folder (donut) + File Explorer, side by side */}
-      <div style={styles.lowerGrid}>
+      <div
+        ref={lowerGridRef}
+        style={{
+          ...styles.lowerGrid,
+          gridTemplateColumns: `${splitRatio * 100}% 12px minmax(0, 1fr)`,
+        }}
+      >
         {/* Files by Folder */}
-        <div>
+        <div style={{ minWidth: 0, alignSelf: "start" }}>
           <p style={styles.sectionLabel}>Files by Folder</p>
           <div style={styles.chartCard}>
             {countsLoading && (
@@ -1243,6 +1275,29 @@ export default function Home() {
           </div>
         </div>
 
+        <div
+          role="separator"
+          aria-label="Resize chart and explorer"
+          onMouseDown={(event) => {
+            event.preventDefault();
+            setIsResizing(true);
+          }}
+          style={{
+            width: 12,
+            height: 395,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "col-resize",
+            userSelect: "none",
+            borderLeft: "1px solid rgba(255,255,255,0.05)",
+            borderRight: "1px solid rgba(255,255,255,0.05)",
+            background: "rgba(255,255,255,0.02)",
+          }}
+        >
+          <div style={{ width: 4, height: 58, borderRadius: 999, background: "rgba(255,255,255,0.2)" }} />
+        </div>
+
         {/* File Explorer */}
         <div
           onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
@@ -1270,7 +1325,7 @@ export default function Home() {
             });
             logActivity("file", "Added via pin drag", dropped.title);
           }}
-          style={{ position: "relative" }}
+          style={{ position: "relative", minWidth: 0, height: "100%" }}
         >
           {/* Highlight overlay: absolutely positioned so it can bleed well past
               the section's own box (covering it edge-to-edge and beyond) purely
@@ -1281,12 +1336,13 @@ export default function Home() {
             style={{
               position: "absolute",
               top: 0,
-              bottom: -200,
+              bottom: -20,
               left: -5,
               right: -25,
               borderRadius: 18,
               pointerEvents: "none",
               opacity: isDragOver ? 1 : 0,
+              display: isDragOver ? "block" : "none",
               background: "rgba(129,140,248,0.14)",
               outline: "4px dashed #818cf8",
               outlineOffset: -4,
@@ -1323,8 +1379,9 @@ export default function Home() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    padding: "32px 32px 48px", minHeight: "100%", background: "#0f1f3d",
+    padding: "24px 24px 32px", minHeight: "100vh", background: "#0f1f3d",   // removed: height: "100vh"
     fontFamily: "'Geist', 'DM Sans', system-ui, sans-serif", boxSizing: "border-box",
+    display: "flex", flexDirection: "column" as const,
   },
   greeting: { margin: "0 0 6px 0", fontSize: 40, fontWeight: 600, color: "#fff", letterSpacing: "-0.02em" },
   greetingSub: { margin: 0, fontSize: 13.5, color: "rgba(255,255,255,0.38)" },
@@ -1335,10 +1392,17 @@ const styles: Record<string, React.CSSProperties> = {
   cardText: { display: "flex", flexDirection: "column" as const, gap: 3, minWidth: 0 },
   cardTitle: { fontSize: 13.5, fontWeight: 500, color: "rgba(255,255,255,0.85)", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" },
   cardType: { fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" as const },
-  lowerGrid: { display: "grid", gridTemplateColumns: "520px 1fr", gap: 20, alignItems: "start" },
+  lowerGrid: {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 58%) 12px minmax(0, 1fr)",
+  gap: 12,
+  alignItems: "stretch",   // was "stretch", so the chart column no longer stretches to match the explorer
+  flex: 1,
+  },
   chartCard: {
     background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
-    borderRadius: 12, padding: "20px 18px", minHeight: 220, boxSizing: "border-box" as const,
+    borderRadius: 12, padding: "28px 26px", boxSizing: "border-box" as const,  
+    marginBottom: 40, // was "20px 18px"
   },
   spinner: {
     width: 24, height: 24, border: "3px solid rgba(255,255,255,0.1)",
