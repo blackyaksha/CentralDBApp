@@ -14,7 +14,8 @@
       "displayName": "SharePoint",
       "dataSources": [
         "database",
-        "sharepointonline"
+        "sharepointonline",
+        "monitoringofpdlogs"
       ],
       "authenticationType": null,
       "sharedConnectionId": null,
@@ -23,6 +24,13 @@
           "dataSources": {
             "database": {
               "tableName": "36c3e3fe-6115-4088-9f76-66173c2a0060"
+            }
+          }
+        },
+        "https://energyregcomm.sharepoint.com/sites/CentralDatabase": {
+          "dataSources": {
+            "monitoringofpdlogs": {
+              "tableName": "Monitoring of PD Logs"
             }
           }
         }

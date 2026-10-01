@@ -1,51 +1,61 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
-import { supabase, fetchDocuments } from '../services/supabaseClient'
+// TODO: match the service name/path to what `pac code add-data-source` generated in src/generated
+import { MonitoringofPDLogsService as Svc } from '../generated/services/MonitoringofPDLogsService'
 
 type Row = Record<string, string>
 
-const COLUMNS = ['Date', 'For', 'Particular', 'Type of Document', 'Out To', 'Remarks']
+const COLUMNS = ['Date', 'For', 'Particular', 'Out To', 'Remarks']
 const WRAP_COLS = new Set(['Particular', 'Remarks'])
+// Table column widths (must add up to 100%): Particular and Remarks are the wide ones
+const COL_WIDTHS: Record<string, string> = { Date: '11%', For: '12%', Particular: '33%', 'Out To': '12%', Remarks: '32%' }
 const EMPTY_FORM = Object.fromEntries(COLUMNS.map(c => [c, '']))
 
-function formatDateValue(raw: any): string {
-  if (raw === null || raw === undefined || raw === '') return ''
-  if (typeof raw === 'number') {
-    const date = XLSX.SSF.parse_date_code(raw)
-    if (date) return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`
+// ── SharePoint field mapping ──────────────────────────────────────────────────
+// Edit the internal column names here to match the generated model in src/generated/models
+const F = {
+  date: 'Date',
+  for: 'For',
+  particular: 'Particular',
+  outTo: 'OutTo',
+  remarks: 'Remarks',
+}
+// Any of these that are Choice columns in SharePoint must be sent as { Value: '...' }
+const CHOICE_FIELDS = new Set<string>([])
+
+// Choice/Person values come back as objects — flatten to plain text
+const spVal = (v: any): string => {
+  if (v === null || v === undefined) return ''
+  if (typeof v === 'object') return String(v.Value ?? v.Title ?? '')
+  return String(v)
+}
+const spWrite = (field: string, v: string, empty: any) =>
+  v ? (CHOICE_FIELDS.has(field) ? { Value: v } : v) : empty
+
+// forCreate: omit empty fields. For updates, empty fields are sent as null so cleared cells actually clear.
+const toPayload = (r: Row, forCreate: boolean): any => {
+  const empty = forCreate ? undefined : null
+  const p: Record<string, any> = {
+    [F.for]: spWrite(F.for, r['For'], empty),
+    [F.particular]: spWrite(F.particular, r['Particular'], empty),
+    [F.outTo]: spWrite(F.outTo, r['Out To'], empty),
+    [F.remarks]: spWrite(F.remarks, r['Remarks'], empty),
   }
-  const str = String(raw).trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
-  const parsed = new Date(str)
-  if (!isNaN(parsed.getTime())) {
-    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`
-  }
-  return str
+  if (r['Date']) p[F.date] = r['Date']
+  if (forCreate) Object.keys(p).forEach(k => p[k] === undefined && delete p[k])
+  return p
 }
 
-function parseAoAtoRows(aoa: any[][]): Row[] {
-  const rows: Row[] = []
-  if (!aoa || !aoa.length) return rows
-  const first = aoa[0].map((v: any) => String(v || '').trim())
-  const hasHeader = COLUMNS.every((c) => first.includes(c))
-  const start = hasHeader ? 1 : 0
-  for (let i = start; i < aoa.length; i++) {
-    const r = aoa[i]
-    if (!r || r.every((cell: any) => cell === null || cell === undefined || cell === '')) continue
-    const obj: Row = {}
-    for (let j = 0; j < COLUMNS.length; j++) {
-      const raw = r[j]
-      obj[COLUMNS[j]] = COLUMNS[j] === 'Date' ? formatDateValue(raw) : String(raw ?? '')
-    }
-    rows.push(obj)
+// Generated SharePoint services often return { success, data, error } instead of throwing,
+// so surface failures ourselves (and log the raw result to the browser console for debugging)
+const assertOk = (res: any, label: string) => {
+  console.log(label, res)
+  if (res && res.success === false) {
+    const e = res.error
+    throw new Error(e?.message || (typeof e === 'string' ? e : JSON.stringify(e)))
   }
-  return rows
-}
-
-function autoResize(el: HTMLTextAreaElement) {
-  el.style.height = 'auto'
-  el.style.height = el.scrollHeight + 'px'
+  return res
 }
 
 // ── Modal: Add Row ────────────────────────────────────────────────────────────
@@ -127,35 +137,100 @@ function AddRowModal({
   )
 }
 
+// ── Modal: Edit Row ───────────────────────────────────────────────────────────
+function EditRowModal({
+  row,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  row: Row
+  saving: boolean
+  onSave: (row: Row) => void
+  onCancel: () => void
+}) {
+  const [form, setForm] = useState<Row>({ ...row })
+  const set = (col: string, val: string) => setForm(f => ({ ...f, [col]: val }))
+  const changed = COLUMNS.some(c => (form[c] ?? '') !== (row[c] ?? ''))
+
+  return (
+    <div style={M.overlay}>
+      <div style={M.box}>
+        <h3 style={M.title}>Edit entry</h3>
+        <p style={M.sub}>Update the details below, then save your changes.</p>
+        <div style={M.formGrid}>
+          {COLUMNS.map(col => (
+            <React.Fragment key={col}>
+              <label style={M.label}>{col}</label>
+              {col === 'Date' ? (
+                <input
+                  type="date"
+                  value={form[col] ?? ''}
+                  onChange={e => set(col, e.target.value)}
+                  style={M.input}
+                />
+              ) : WRAP_COLS.has(col) ? (
+                <textarea
+                  value={form[col] ?? ''}
+                  onChange={e => set(col, e.target.value)}
+                  style={{ ...M.input, ...M.textarea }}
+                  rows={3}
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={form[col] ?? ''}
+                  onChange={e => set(col, e.target.value)}
+                  style={M.input}
+                />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+        <div style={M.actions}>
+          <button style={{ ...M.btn, ...M.btnGhost }} onClick={onCancel} disabled={saving}>Cancel</button>
+          <button
+            style={{ ...M.btn, ...M.btnSuccess }}
+            onClick={() => (changed ? onSave(form) : onCancel())}
+            disabled={saving}
+          >
+            {saving ? 'Saving...' : 'Save changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function DocumentsMonitor() {
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [fileName, setFileName] = useState<string>('data.xlsx')
+  const fileName = 'Documents-Monitoring.xlsx'
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingRow, setEditingRow] = useState<Row | null>(null)
   const tableRef = useRef<HTMLDivElement | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const exportMenuRef = useRef<HTMLDivElement | null>(null)
 
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [forFilter, setForFilter] = useState('')
 
-  const loadFromSupabase = useCallback(async () => {
+  const loadFromSharePoint = useCallback(async () => {
     setLoading(true)
     try {
-      const data: any[] | null = await fetchDocuments()
-      if (!data) return
+      // NOTE: getAll() may return only the first page — check its options (top / skip token) if the list is large
+      const res: any = assertOk(await Svc.getAll(), 'getAll result')
+      const data: any[] = res?.data ?? []
       setRows(data.map(d => ({
-        id: d.id,
-        Date: d.date ? String(d.date).slice(0, 10) : '',
-        For: d.for_person ?? '',
-        Particular: d.particular ?? '',
-        'Type of Document': d.type_of_docs ?? '',
-        'Out To': d.out_to_person ?? '',
-        Remarks: d.remarks ?? '',
+        id: String(d.ID ?? d.Id ?? d.id),
+        Date: d[F.date] ? String(d[F.date]).slice(0, 10) : '',
+        For: spVal(d[F.for]),
+        Particular: spVal(d[F.particular]),
+        'Out To': spVal(d[F.outTo]),
+        Remarks: spVal(d[F.remarks]),
       })))
     } catch (err: any) {
       alert('Load failed: ' + (err.message || String(err)))
@@ -164,7 +239,7 @@ export default function DocumentsMonitor() {
     }
   }, [])
 
-  useEffect(() => { loadFromSupabase() }, [loadFromSupabase])
+  useEffect(() => { loadFromSharePoint() }, [loadFromSharePoint])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -175,35 +250,18 @@ export default function DocumentsMonitor() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const handleFile = async (file?: File) => {
-    if (!file) return
-    setFileName(file.name || 'data.xlsx')
-    const ab = await file.arrayBuffer()
-    const wb = XLSX.read(ab, { type: 'array', cellDates: false, raw: true })
-    const ws = wb.Sheets[wb.SheetNames[0]]
-    const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as any[][]
-    setRows(parseAoAtoRows(aoa))
-  }
-
-  // Insert only new rows (no id) — never touches existing DB rows
+  // Insert only new rows (no id) — never touches existing rows
   const saveNewRows = async (newRows: Row[]) => {
     if (!newRows.length) return
     setSaving(true)
     try {
-      const payload = newRows.map(r => {
-        const row: Record<string, any> = {
-          for_person: r['For'] || null,
-          particular: r['Particular'] || null,
-          type_of_docs: r['Type of Document'] || null,
-          out_to_person: r['Out To'] || null,
-          remarks: r['Remarks'] || null,
-        }
-        if (r['Date']) row.date = r['Date']
-        return row
-      })
-      const { error } = await supabase.from('outgoing_incoming_docs').insert(payload)
-      if (error) throw error
-      await loadFromSupabase()
+      // SharePoint has no bulk insert, so one create per row
+      for (const r of newRows) {
+        const payload = toPayload(r, true)
+        console.log('create payload', payload)
+        assertOk(await Svc.create(payload), 'create result')
+      }
+      await loadFromSharePoint()
     } catch (err: any) {
       alert('Save failed: ' + (err.message || String(err)))
     } finally {
@@ -211,29 +269,18 @@ export default function DocumentsMonitor() {
     }
   }
 
-  // Update existing rows only (has id) — never inserts
-  const saveEdits = async () => {
-    const existingRows = rows.filter(r => !!(r as any).id)
-    if (!existingRows.length) return
+  // Update one row (from the Edit popup) — never inserts. Returns true on success.
+  const saveEdit = async (row: Row): Promise<boolean> => {
     setSaving(true)
     try {
-      const payload = existingRows.map(r => ({
-        id: (r as any).id,
-        for_person: r['For'] || null,
-        particular: r['Particular'] || null,
-        type_of_docs: r['Type of Document'] || null,
-        out_to_person: r['Out To'] || null,
-        remarks: r['Remarks'] || null,
-        ...(r['Date'] ? { date: r['Date'] } : {}),
-      }))
-      const { error } = await supabase
-        .from('outgoing_incoming_docs')
-        .upsert(payload, { onConflict: 'id' })
-      if (error) throw error
-      alert('Changes saved.')
-      await loadFromSupabase()
+      const payload = toPayload(row, false)
+      console.log('update payload', payload)
+      assertOk(await Svc.update((row as any).id, payload), 'update result')
+      await loadFromSharePoint()
+      return true
     } catch (err: any) {
       alert('Save failed: ' + (err.message || String(err)))
+      return false
     } finally {
       setSaving(false)
     }
@@ -244,12 +291,10 @@ export default function DocumentsMonitor() {
     await saveNewRows([row])
   }
 
-  const updateCell = (rowIndex: number, col: string, val: string) => {
-    setRows(prev => {
-      const copy = prev.map(r => ({ ...r }))
-      copy[rowIndex][col] = val
-      return copy
-    })
+  // Keep the popup open while saving so nothing is lost if the save fails
+  const handleEditSave = async (row: Row) => {
+    const ok = await saveEdit(row)
+    if (ok) setEditingRow(null)
   }
 
   const exportXlsx = () => {
@@ -272,14 +317,7 @@ export default function DocumentsMonitor() {
   const ph = pdf.internal.pageSize.getHeight()
   const margin = 10
   const usableWidth = pw - margin * 2
-  const colWidths = [
-    usableWidth * 0.09,  // Date
-    usableWidth * 0.09,  // For
-    usableWidth * 0.30,  // Particular
-    usableWidth * 0.12,  // Type of Document
-    usableWidth * 0.09,  // Out To
-    usableWidth * 0.31,  // Remarks
-  ]
+  const colWidths = COLUMNS.map(c => usableWidth * (parseFloat(COL_WIDTHS[c]) / 100))
   const headerHeight = 10
   let y = margin
 
@@ -424,34 +462,30 @@ const filtered = useMemo(() => {
         />
       )}
 
+      {editingRow && (
+        <EditRowModal
+          row={editingRow}
+          saving={saving}
+          onSave={handleEditSave}
+          onCancel={() => setEditingRow(null)}
+        />
+      )}
+
       <div style={S.header}>
         <h2 style={S.heading}>
           Outgoing and Incoming Documents Monitoring Page
           {rows.length > 0 && (
             <span style={S.badge}>{rows.length} row{rows.length !== 1 ? 's' : ''}</span>
           )}
+          {saving && <span style={S.badge}>Saving...</span>}
         </h2>
-        <p style={S.subheading}>Records load automatically. Use the form to add entries; edits are saved with the Save Edits button.</p>
+        <p style={S.subheading}>Records load automatically. Use “Add entry” to add a record, or click a row to edit it.</p>
       </div>
 
       <div style={S.toolbar}>
         <div style={S.toolbarLeft}>
-          <input
-            ref={fileInputRef}
-            id="file-input"
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            style={{ display: 'none' }}
-            onChange={e => handleFile(e.target.files?.[0])}
-          />
-          <label htmlFor="file-input" style={S.btn}>↑ Upload file</label>
-
           <button onClick={() => setShowAddModal(true)} style={{ ...S.btn, ...S.btnPrimary }}>
             + Add entry
-          </button>
-
-          <button onClick={saveEdits} style={{ ...S.btn, ...S.btnSuccess }} disabled={saving}>
-            {saving ? 'Saving...' : '💾 Save edits'}
           </button>
 
           <div ref={exportMenuRef} style={{ position: 'relative' }}>
@@ -466,7 +500,7 @@ const filtered = useMemo(() => {
             )}
           </div>
 
-          <button onClick={loadFromSupabase} style={S.btn} title="Refresh">↺ Refresh</button>
+          <button onClick={loadFromSharePoint} style={S.btn} title="Refresh">↺ Refresh</button>
         </div>
 
         <div style={S.toolbarRight}>
@@ -490,69 +524,40 @@ const filtered = useMemo(() => {
 
       <div ref={tableRef} style={S.tableWrap}>
         <table style={S.table}>
+          <colgroup>
+            {COLUMNS.map(c => <col key={c} style={{ width: COL_WIDTHS[c] }} />)}
+          </colgroup>
           <thead>
             <tr>
               {COLUMNS.map(c => <th key={c} style={S.th}>{c}</th>)}
-              <th style={{ ...S.th, width: 40 }} />
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={COLUMNS.length + 1} style={S.empty}>Loading...</td></tr>
+              <tr><td colSpan={COLUMNS.length} style={S.empty}>Loading...</td></tr>
             )}
             {!loading && rows.length === 0 && (
-              <tr><td colSpan={COLUMNS.length + 1} style={S.empty}>No records found. Add an entry or upload a file.</td></tr>
+              <tr><td colSpan={COLUMNS.length} style={S.empty}>No records found. Add an entry to get started.</td></tr>
             )}
             {!loading && rows.length > 0 && filtered.length === 0 && (
-              <tr><td colSpan={COLUMNS.length + 1} style={S.empty}>No rows match the current filters.</td></tr>
+              <tr><td colSpan={COLUMNS.length} style={S.empty}>No rows match the current filters.</td></tr>
             )}
-            {!loading && filtered.map(row => {
-              const ri = rows.indexOf(row)
-              const hasId = !!(row as any).id
-              return (
-                <tr key={ri} style={S.tr}>
-                  {COLUMNS.map(col => {
-                    const isWrap = WRAP_COLS.has(col)
-                    return (
-                      <td key={col} style={isWrap ? S.tdWrap : S.td}>
-                        {col === 'Date' ? (
-                          <input
-                            type="date"
-                            value={row[col] ?? ''}
-                            onChange={e => updateCell(ri, col, e.target.value)}
-                            style={S.cellInput}
-                          />
-                        ) : isWrap ? (
-                          <textarea
-                            value={row[col] ?? ''}
-                            ref={el => { if (el) autoResize(el) }}
-                            onChange={e => { updateCell(ri, col, e.target.value); autoResize(e.target) }}
-                            style={S.cellInputWrap}
-                            rows={1}
-                          />
-                        ) : (
-                          <input
-                            type="text"
-                            value={row[col] ?? ''}
-                            onChange={e => updateCell(ri, col, e.target.value)}
-                            style={S.cellInput}
-                          />
-                        )}
-                      </td>
-                    )
-                  })}
-                  <td style={S.td}>
-                    {!hasId && (
-                      <button
-                        onClick={() => setRows(prev => prev.filter((_, i) => i !== ri))}
-                        style={S.deleteBtn}
-                        title="Remove unsaved row"
-                      >✕</button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
+            {!loading && filtered.map(row => (
+              <tr
+                key={(row as any).id}
+                style={S.trClickable}
+                tabIndex={0}
+                title="Click to edit"
+                onClick={() => setEditingRow(row)}
+                onKeyDown={e => { if (e.key === 'Enter') setEditingRow(row) }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '' }}
+              >
+                {COLUMNS.map(col => (
+                  <td key={col} style={S.td}>{row[col] ?? ''}</td>
+                ))}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -580,15 +585,12 @@ const S: Record<string, React.CSSProperties> = {
   filterLabel: { fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' as const },
   filterInput: { fontSize: '13px', padding: '6px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: '#cbd5e1' },
   tableWrap: { flex: 1, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', overflowX: 'auto' as const, overflowY: 'auto' as const, minHeight: 0 },
-  table: { borderCollapse: 'collapse' as const, width: '100%', fontSize: '15px', border: '1px solid rgba(148, 163, 184, 0.25)' },
+  table: { borderCollapse: 'collapse' as const, tableLayout: 'fixed' as const, width: '100%', minWidth: '900px', fontSize: '15px', border: '1px solid rgba(148, 163, 184, 0.25)' },
   th: { padding: '10px 14px', textAlign: 'left' as const, fontWeight: 500, fontSize: '15px', color: '#64748b', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' as const },
   tr: { borderBottom: '1px solid rgba(255,255,255,0.04)' },
-  td: { padding: '7px 14px', verticalAlign: 'middle' as const, color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.08)' },
-  cellInput: { width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '15px', color: '#cbd5e1', fontFamily: 'system-ui, sans-serif', padding: '2px 0' },
+  td: { padding: '7px 14px', verticalAlign: 'top' as const, color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'pre-wrap' as const, wordBreak: 'break-word' as const, lineHeight: '1.5' },
+  trClickable: { borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer' },
   empty: { padding: '40px', textAlign: 'center' as const, color: '#475569', fontSize: '13px' },
-  tdWrap: { padding: '7px 14px', verticalAlign: 'top' as const, color: '#cbd5e1', minWidth: '200px', maxWidth: '320px' },
-  cellInputWrap: { width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', color: '#cbd5e1', fontFamily: 'system-ui, sans-serif', padding: '2px 0', whiteSpace: 'pre-wrap' as const, wordBreak: 'break-word' as const, resize: 'none' as const, overflow: 'hidden', lineHeight: '1.5', minHeight: '24px' },
-  deleteBtn: { padding: '3px 8px', fontSize: '12px', border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: '#475569', borderRadius: '6px', cursor: 'pointer' },
 }
 
 // ── Modal Styles ──────────────────────────────────────────────────────────────
